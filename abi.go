@@ -1,6 +1,6 @@
-package main
+package eth_util
 
-var abiMini=`[
+var AbiMini=`[
 	{
 		"inputs": [
 			{
