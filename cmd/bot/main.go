@@ -1,10 +1,15 @@
 package main
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
 	"github.com/BurntSushi/toml"
 	"github.com/go-telegram-bot-api/telegram-bot-api"
+	"io/ioutil"
 	"log"
+	"net/http"
+	"time"
 )
 
 const (
@@ -18,8 +23,11 @@ const (
 )
 
 var (
-	step                []string
-	contractTarget      = make(map[string][]string)
+	step           []string
+	contractTarget = make(map[string][]string) // contract->addresses
+
+	addressChatIds = make(map[string][]int64)
+
 	tempContractAddress string
 
 	mainMenu = tgbotapi.NewInlineKeyboardMarkup(
@@ -45,8 +53,8 @@ var (
 )
 
 type config struct {
-	tgToken      string
-	etherscanKey string
+	TgToken      string
+	EtherscanKey string
 }
 
 func main() {
@@ -56,7 +64,7 @@ func main() {
 		panic(err)
 	}
 	fmt.Println(cfg)
-	bot, err := tgbotapi.NewBotAPI(cfg.tgToken)
+	bot, err := tgbotapi.NewBotAPI(cfg.TgToken)
 	if err != nil {
 		log.Panic(err)
 	}
@@ -72,6 +80,13 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer func() {
+		cancel()
+	}()
+	go monitor(ctx, bot)
+
 	for update := range updates {
 
 		if update.Message != nil {
@@ -95,6 +110,51 @@ func main() {
 	}
 }
 
+type tokenBalanceRes struct {
+	Status  string `json:"status"`
+	Message string `json:"message"`
+	Result  string `json:"result"`
+}
+
+func monitor(ctx context.Context, bot *tgbotapi.BotAPI) {
+	ticker := time.NewTicker(time.Second * 5)
+	api := "https://api.etherscan.io/api?module=account&action=tokenbalance&contractaddress=%s&address=%s&tag=latest&apikey=%s"
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			for contract, addresses := range contractTarget {
+				for _, addr := range addresses {
+
+					res, err := http.Get(fmt.Sprintf(api, contract, addr, "VC35I1VEW49ZTRNPDT11QQ8WWCS324FZGS"))
+					if err != nil {
+						fmt.Println(err)
+						continue
+					}
+					tokenBalanceRes := tokenBalanceRes{}
+					bts, err := ioutil.ReadAll(res.Body)
+					if err != nil {
+						fmt.Println(err)
+						continue
+					}
+					err = json.Unmarshal(bts, &tokenBalanceRes)
+					if err != nil {
+						fmt.Println(err)
+						continue
+					}
+					for _, chatId := range addressChatIds[addr] {
+						msg := tgbotapi.NewMessage(chatId, tokenBalanceRes.Result)
+						bot.Send(msg)
+					}
+
+				}
+			}
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
 func dealMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
 	msg := tgbotapi.NewMessage(message.Chat.ID, "")
 	switch step[len(step)-1] {
@@ -112,6 +172,7 @@ func dealMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
 		step = append(step, addTokenAddressStep)
 		contractTarget[tempContractAddress] = append(contractTarget[tempContractAddress],
 			message.Text)
+		addressChatIds[message.Text] = append(addressChatIds[message.Text], message.Chat.ID)
 
 		msg.Text = fmt.Sprintf("add monitor ok!\ncontract address: %s \ntoken address: %s",
 			tempContractAddress, message.Text)
