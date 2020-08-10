@@ -2,9 +2,9 @@ package main
 
 import (
 	"fmt"
-	"log"
-
+	"github.com/BurntSushi/toml"
 	"github.com/go-telegram-bot-api/telegram-bot-api"
+	"log"
 )
 
 const (
@@ -17,12 +17,25 @@ const (
 	listMonitorStep           = "listMonitor"
 )
 
-var step []string
-var contractTarget = make(map[string][]string)
-var tempContractAddress string
+var (
+	step                []string
+	contractTarget      = make(map[string][]string)
+	tempContractAddress string
+)
+
+type config struct {
+	tgToken      string
+	etherscanKey string
+}
 
 func main() {
-	bot, err := tgbotapi.NewBotAPI("1155247913:AAEDAErTT4YwixdFbu-ZSSdDF6przCjZh30")
+	cfg := config{}
+	_, err := toml.DecodeFile("./conf.toml", &cfg)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println(cfg)
+	bot, err := tgbotapi.NewBotAPI(cfg.tgToken)
 	if err != nil {
 		log.Panic(err)
 	}
@@ -58,8 +71,6 @@ func main() {
 	)
 
 	for update := range updates {
-
-		//msg.ReplyToMessageID = update.Message.MessageID
 
 		if update.Message != nil {
 			log.Printf("[%s] %s", update.Message.From.UserName, update.Message.Text)
