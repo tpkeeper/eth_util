@@ -1,3 +1,4 @@
 .idea
 ./cmd/tx/tx
 ./cmd/event/event
+./cmd/bot/bot
