@@ -6,6 +6,8 @@ import (
 	"strconv"
 )
 
+const dbFilePath = "./bot.db"
+
 func handleMessageText(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
 	msg := tgbotapi.NewMessage(message.Chat.ID, "")
 	switch step[len(step)-1] {
@@ -23,12 +25,17 @@ func handleMessageText(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
 		step = append(step, addTokenAddressStep)
 		key := tempContractAddress + message.Text
 		if monitorTarget, exist := monitorTargetErc20s[key]; exist {
-			monitorTarget.chatId[strconv.FormatInt(message.Chat.ID, 10)] = struct{}{}
+			monitorTarget.ChatId[strconv.FormatInt(message.Chat.ID, 10)] = struct{}{}
 		} else {
 			chatIdMap := make(map[string]struct{})
-			chatIdMap[strconv.FormatInt(message.Chat.ID,10)] = struct{}{}
+			chatIdMap[strconv.FormatInt(message.Chat.ID, 10)] = struct{}{}
 			monitorTargetErc20s[key] = &MonitorTargetErc20{
-				contractAddress: tempContractAddress, tokenAddress: message.Text, chatId: chatIdMap}
+				ContractAddress: tempContractAddress, TokenAddress: message.Text, ChatId: chatIdMap}
+		}
+
+		err := saveMonitorTargetToDb(dbFilePath, monitorTargetErc20s)
+		if err != nil {
+			fmt.Printf("saveMonitorTargetToDb %s", err)
 		}
 
 		msg.Text = fmt.Sprintf("add monitor ok!\ncontract address: %s \ntoken address: %s",

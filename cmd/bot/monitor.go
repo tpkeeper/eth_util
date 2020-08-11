@@ -26,7 +26,7 @@ func monitor(ctx context.Context, bot *tgbotapi.BotAPI) {
 		select {
 		case <-ticker.C:
 			for _, tokenInfo := range monitorTargetErc20s {
-				res, err := http.Get(fmt.Sprintf(api, tokenInfo.contractAddress, tokenInfo.tokenAddress, "VC35I1VEW49ZTRNPDT11QQ8WWCS324FZGS"))
+				res, err := http.Get(fmt.Sprintf(api, tokenInfo.ContractAddress, tokenInfo.TokenAddress, "VC35I1VEW49ZTRNPDT11QQ8WWCS324FZGS"))
 				if err != nil {
 					fmt.Println(err)
 					continue
@@ -50,22 +50,22 @@ func monitor(ctx context.Context, bot *tgbotapi.BotAPI) {
 				nowAmount.SetString(tokenBalanceRes.Result, 10)
 				nowAmount.Div(nowAmount, big.NewInt(1000000000000000000))
 
-				preAmount := tokenInfo.amount
+				preAmount := tokenInfo.Amount
 
-				tokenInfo.amount = *nowAmount
+				tokenInfo.Amount = *nowAmount
 
 				delta := new(big.Int).Sub(nowAmount, &preAmount)
 
 				if delta.Cmp(big.NewInt(0)) != 0 {
-					for chatId, _ := range tokenInfo.chatId {
+					for chatId, _ := range tokenInfo.ChatId {
 						chatIdInt, err := strconv.ParseInt(chatId, 10, 64)
 						if err != nil {
 							fmt.Println(err)
 							continue
 						}
 						msg := tgbotapi.NewMessage(chatIdInt,
-							fmt.Sprintf("contractAddress: %s\ntokenAddress: %s\nnowAmount: %s\ndelta: %s",
-								tokenInfo.contractAddress, tokenInfo.tokenAddress, nowAmount.String(), delta.String()))
+							fmt.Sprintf("ContractAddress: %s\ntokenAddress: %s\nnowAmount: %s\ndelta: %s",
+								tokenInfo.ContractAddress, tokenInfo.TokenAddress, nowAmount.String(), delta.String()))
 						_, err = bot.Send(msg)
 						if err != nil {
 							fmt.Println(err)

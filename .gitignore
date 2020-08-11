@@ -4,3 +4,4 @@ cmd/event/event
 cmd/bot/bot
 cmd/bot/conf.toml
 cmd/tx/conf.toml
+*.db

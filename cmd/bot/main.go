@@ -21,7 +21,7 @@ const (
 
 var (
 	step                []string
-	monitorTargetErc20s = make(map[string]*MonitorTargetErc20) // contractAddress+tokenAddress -> []MonitorTargetErc20
+	monitorTargetErc20s map[string]*MonitorTargetErc20 // ContractAddress+TokenAddress -> []MonitorTargetErc20
 
 	tempContractAddress string
 
@@ -48,10 +48,10 @@ var (
 )
 
 type MonitorTargetErc20 struct {
-	contractAddress string
-	tokenAddress    string
-	amount          big.Int
-	chatId          map[string]struct{} //key is string so it is easy to marshal
+	ContractAddress string
+	TokenAddress    string
+	Amount          big.Int
+	ChatId          map[string]struct{} //key is string so it is easy to marshal
 }
 
 type config struct {
@@ -66,6 +66,12 @@ func main() {
 		panic(err)
 	}
 	fmt.Println(cfg)
+	err = initDb(dbFilePath)
+	monitorTargetErc20s, err = getMonitorTargetFromDb(dbFilePath)
+	if err != nil {
+		panic(err)
+	}
+
 	bot, err := tgbotapi.NewBotAPI(cfg.TgToken)
 	if err != nil {
 		log.Panic(err)
