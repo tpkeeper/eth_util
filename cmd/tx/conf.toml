@@ -1,7 +1,0 @@
-api="https://ropsten.infura.io/v3/fa2b9f06ae2f43faa3ce69c80fde51c5"
-mnemonic="large flower skin interest pulp embrace until jelly drop insane erase unveil"
-value=0.01 # 单位 eth，必须包含小数点，如：1.0、0.01
-gaslimit=200000
-gasprice=68 #单位 Gwei
-times=10 #循环次数
-interval=3000 ##循环间隔时间，单位 毫秒

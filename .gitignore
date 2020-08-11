@@ -2,4 +2,5 @@
 ./cmd/tx/tx
 ./cmd/event/event
 ./cmd/bot/bot
-*.toml
+./cmd/bot/conf.toml
+./cmd/tx/conf.toml

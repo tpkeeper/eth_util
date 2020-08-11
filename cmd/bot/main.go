@@ -8,6 +8,7 @@ import (
 	"github.com/go-telegram-bot-api/telegram-bot-api"
 	"io/ioutil"
 	"log"
+	"math/big"
 	"net/http"
 	"time"
 )
@@ -22,11 +23,16 @@ const (
 	listMonitorStep           = "listMonitor"
 )
 
-var (
-	step           []string
-	contractTarget = make(map[string][]string) // contract->addresses
+type MonitorTargetErc20 struct {
+	contractAddress string
+	tokenAddress    string
+	amount          *big.Int
+	chatId          map[int64]struct{}
+}
 
-	addressChatIds = make(map[string][]int64)
+var (
+	step                []string
+	monitorTargetErc20s = make(map[string]*MonitorTargetErc20) // contractAddress+tokenAddress -> []MonitorTargetErc20
 
 	tempContractAddress string
 
@@ -110,7 +116,7 @@ func main() {
 	}
 }
 
-type tokenBalanceRes struct {
+type TokenBalanceRes struct {
 	Status  string `json:"status"`
 	Message string `json:"message"`
 	Result  string `json:"result"`
@@ -123,37 +129,47 @@ func monitor(ctx context.Context, bot *tgbotapi.BotAPI) {
 	for {
 		select {
 		case <-ticker.C:
-			for contract, addresses := range contractTarget {
-				for _, addr := range addresses {
-
-					res, err := http.Get(fmt.Sprintf(api, contract, addr, "VC35I1VEW49ZTRNPDT11QQ8WWCS324FZGS"))
-					if err != nil {
-						fmt.Println(err)
-						continue
-					}
-					tokenBalanceRes := tokenBalanceRes{}
-					bts, err := ioutil.ReadAll(res.Body)
-					if err != nil {
-						fmt.Println(err)
-						continue
-					}
-					err = json.Unmarshal(bts, &tokenBalanceRes)
-					if err != nil {
-						fmt.Println(err)
-						continue
-					}
-					for _, chatId := range addressChatIds[addr] {
-						msg := tgbotapi.NewMessage(chatId, tokenBalanceRes.Result)
-						bot.Send(msg)
-					}
-
+			for _, tokenInfo := range monitorTargetErc20s {
+				res, err := http.Get(fmt.Sprintf(api, tokenInfo.contractAddress, tokenInfo.tokenAddress, "VC35I1VEW49ZTRNPDT11QQ8WWCS324FZGS"))
+				if err != nil {
+					fmt.Println(err)
+					continue
 				}
+				tokenBalanceRes := TokenBalanceRes{}
+				bts, err := ioutil.ReadAll(res.Body)
+				if err != nil {
+					fmt.Println(err)
+					continue
+				}
+				err = json.Unmarshal(bts, &tokenBalanceRes)
+				if err != nil {
+					fmt.Println(err)
+					continue
+				}
+				if tokenBalanceRes.Status != "1" {
+					fmt.Println(tokenBalanceRes)
+					continue
+				}
+				balanceBitInt := new(big.Int)
+				balanceBitInt.SetString(tokenBalanceRes.Result, 10)
+				balanceBitInt.Div(balanceBitInt, big.NewInt(1000000000000000000))
+
+				for chatId, _ := range tokenInfo.chatId {
+					msg := tgbotapi.NewMessage(chatId, tokenBalanceRes.Result)
+					_, err := bot.Send(msg)
+					if err != nil {
+						fmt.Println(err)
+					}
+				}
+				tokenInfo.amount = balanceBitInt
+
 			}
 		case <-ctx.Done():
 			return
 		}
 	}
 }
+
 
 func dealMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
 	msg := tgbotapi.NewMessage(message.Chat.ID, "")
@@ -170,9 +186,15 @@ func dealMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
 	case addTokenAddressStep:
 
 		step = append(step, addTokenAddressStep)
-		contractTarget[tempContractAddress] = append(contractTarget[tempContractAddress],
-			message.Text)
-		addressChatIds[message.Text] = append(addressChatIds[message.Text], message.Chat.ID)
+		key := tempContractAddress + message.Text
+		if monitorTarget, exist := monitorTargetErc20s[key]; exist {
+			monitorTarget.chatId[message.Chat.ID] = struct{}{}
+		} else {
+			chatIdMap := make(map[int64]struct{})
+			chatIdMap[message.Chat.ID] = struct{}{}
+			monitorTargetErc20s[key] = &MonitorTargetErc20{
+				contractAddress: tempContractAddress, tokenAddress: message.Text, chatId: chatIdMap}
+		}
 
 		msg.Text = fmt.Sprintf("add monitor ok!\ncontract address: %s \ntoken address: %s",
 			tempContractAddress, message.Text)
