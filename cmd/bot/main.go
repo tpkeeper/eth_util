@@ -50,8 +50,8 @@ var (
 type MonitorTargetErc20 struct {
 	contractAddress string
 	tokenAddress    string
-	amount          *big.Int
-	chatId          map[int64]struct{}
+	amount          big.Int
+	chatId          map[string]struct{} //key is string so it is easy to marshal
 }
 
 type config struct {

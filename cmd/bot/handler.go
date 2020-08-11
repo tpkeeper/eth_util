@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"github.com/go-telegram-bot-api/telegram-bot-api"
+	"strconv"
 )
 
 func handleMessageText(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
@@ -22,10 +23,10 @@ func handleMessageText(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
 		step = append(step, addTokenAddressStep)
 		key := tempContractAddress + message.Text
 		if monitorTarget, exist := monitorTargetErc20s[key]; exist {
-			monitorTarget.chatId[message.Chat.ID] = struct{}{}
+			monitorTarget.chatId[strconv.FormatInt(message.Chat.ID, 10)] = struct{}{}
 		} else {
-			chatIdMap := make(map[int64]struct{})
-			chatIdMap[message.Chat.ID] = struct{}{}
+			chatIdMap := make(map[string]struct{})
+			chatIdMap[strconv.FormatInt(message.Chat.ID,10)] = struct{}{}
 			monitorTargetErc20s[key] = &MonitorTargetErc20{
 				contractAddress: tempContractAddress, tokenAddress: message.Text, chatId: chatIdMap}
 		}
@@ -81,4 +82,3 @@ func handleCallbackQuery(bot *tgbotapi.BotAPI, callbackQuery *tgbotapi.CallbackQ
 		bot.Send(msg)
 	}
 }
-

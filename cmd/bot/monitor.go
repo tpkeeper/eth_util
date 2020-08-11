@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"math/big"
 	"net/http"
+	"strconv"
 	"time"
 )
 
@@ -45,18 +46,32 @@ func monitor(ctx context.Context, bot *tgbotapi.BotAPI) {
 					fmt.Println(tokenBalanceRes)
 					continue
 				}
-				balanceBitInt := new(big.Int)
-				balanceBitInt.SetString(tokenBalanceRes.Result, 10)
-				balanceBitInt.Div(balanceBitInt, big.NewInt(1000000000000000000))
+				nowAmount := new(big.Int)
+				nowAmount.SetString(tokenBalanceRes.Result, 10)
+				nowAmount.Div(nowAmount, big.NewInt(1000000000000000000))
 
-				for chatId, _ := range tokenInfo.chatId {
-					msg := tgbotapi.NewMessage(chatId, tokenBalanceRes.Result)
-					_, err := bot.Send(msg)
-					if err != nil {
-						fmt.Println(err)
+				preAmount := tokenInfo.amount
+
+				tokenInfo.amount = *nowAmount
+
+				delta := new(big.Int).Sub(nowAmount, &preAmount)
+
+				if delta.Cmp(big.NewInt(0)) != 0 {
+					for chatId, _ := range tokenInfo.chatId {
+						chatIdInt, err := strconv.ParseInt(chatId, 10, 64)
+						if err != nil {
+							fmt.Println(err)
+							continue
+						}
+						msg := tgbotapi.NewMessage(chatIdInt,
+							fmt.Sprintf("contractAddress: %s\ntokenAddress: %s\nnowAmount: %s\ndelta: %s",
+								tokenInfo.contractAddress, tokenInfo.tokenAddress, nowAmount.String(), delta.String()))
+						_, err = bot.Send(msg)
+						if err != nil {
+							fmt.Println(err)
+						}
 					}
 				}
-				tokenInfo.amount = balanceBitInt
 
 			}
 		case <-ctx.Done():
