@@ -20,31 +20,7 @@ const (
 )
 
 var (
-	step                []string
 	monitorTargetErc20s map[string]*MonitorTargetErc20 // ContractAddress+TokenAddress -> []MonitorTargetErc20
-
-	tempContractAddress string
-
-	mainMenu = tgbotapi.NewInlineKeyboardMarkup(
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("Add Monitor", addMonitorStep),
-		),
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("Delete Monitor", deleteMonitorStep),
-		),
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("List Monitor", listMonitorStep),
-		),
-	)
-
-	deleteMenu = tgbotapi.NewInlineKeyboardMarkup(
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("Delete by contract address", deleteContractAddressStep),
-		),
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("Delete by token address", deleteTokenAddressStep),
-		),
-	)
 )
 
 type MonitorTargetErc20 struct {
@@ -98,7 +74,7 @@ func main() {
 		cancel()
 	}()
 
-	go monitor(ctx,bot)
+	go monitor(ctx, bot)
 
 	for update := range updates {
 		if update.Message != nil {

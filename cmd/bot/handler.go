@@ -8,6 +8,31 @@ import (
 
 const dbFilePath = "./bot.db"
 
+var (
+	step                []string
+	tempContractAddress string
+	mainMenu            = tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("Add Monitor", addMonitorStep),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("Delete Monitor", deleteMonitorStep),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("List Monitor", listMonitorStep),
+		),
+	)
+
+	deleteMenu = tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("Delete by contract address", deleteContractAddressStep),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("Delete by token address", deleteTokenAddressStep),
+		),
+	)
+)
+
 func handleMessageText(bot *tgbotapi.BotAPI, db *Db, message *tgbotapi.Message) {
 	msg := tgbotapi.NewMessage(message.Chat.ID, "")
 	switch step[len(step)-1] {
