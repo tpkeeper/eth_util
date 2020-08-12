@@ -50,7 +50,7 @@ var (
 type MonitorTargetErc20 struct {
 	ContractAddress string
 	TokenAddress    string
-	Amount          big.Int
+	Amount          big.Int             `json:"-"`
 	ChatId          map[string]struct{} //key is string so it is easy to marshal
 }
 
@@ -66,8 +66,14 @@ func main() {
 		panic(err)
 	}
 	fmt.Println(cfg)
-	err = initDb(dbFilePath)
-	monitorTargetErc20s, err = getMonitorTargetFromDb(dbFilePath)
+
+	db, err := newDb(dbFilePath)
+	if err != nil {
+		panic(err)
+	}
+	defer db.Close()
+
+	monitorTargetErc20s, err = db.GetMonitorTargetErc20sFromDb()
 	if err != nil {
 		panic(err)
 	}
@@ -76,9 +82,7 @@ func main() {
 	if err != nil {
 		log.Panic(err)
 	}
-
 	bot.Debug = false
-
 	log.Printf("Authorized on account %s", bot.Self.UserName)
 
 	u := tgbotapi.NewUpdate(0)
@@ -93,10 +97,10 @@ func main() {
 	defer func() {
 		cancel()
 	}()
-	go monitor(ctx, bot)
+
+	go monitor(ctx,bot)
 
 	for update := range updates {
-
 		if update.Message != nil {
 			log.Printf("[%s] %s", update.Message.From.UserName, update.Message.Text)
 			if update.Message.IsCommand() {
@@ -108,10 +112,9 @@ func main() {
 					bot.Send(msg)
 					continue
 				}
-				handleMessageText(bot, update.Message)
+				handleMessageText(bot, db, update.Message)
 			}
 		}
-
 		if update.CallbackQuery != nil {
 			handleCallbackQuery(bot, update.CallbackQuery)
 		}

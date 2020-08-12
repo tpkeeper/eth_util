@@ -8,7 +8,7 @@ import (
 
 const dbFilePath = "./bot.db"
 
-func handleMessageText(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
+func handleMessageText(bot *tgbotapi.BotAPI, db *Db, message *tgbotapi.Message) {
 	msg := tgbotapi.NewMessage(message.Chat.ID, "")
 	switch step[len(step)-1] {
 	case addContractAddressStep:
@@ -33,7 +33,7 @@ func handleMessageText(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
 				ContractAddress: tempContractAddress, TokenAddress: message.Text, ChatId: chatIdMap}
 		}
 
-		err := saveMonitorTargetToDb(dbFilePath, monitorTargetErc20s)
+		err := db.SaveMonitorTargetErc20ToDb(*monitorTargetErc20s[key])
 		if err != nil {
 			fmt.Printf("saveMonitorTargetToDb %s", err)
 		}

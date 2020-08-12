@@ -19,14 +19,48 @@ type TokenBalanceRes struct {
 }
 
 func monitor(ctx context.Context, bot *tgbotapi.BotAPI) {
-	ticker := time.NewTicker(time.Second * 5)
+	ticker := time.NewTicker(time.Second * 10)
 	api := "https://api.etherscan.io/api?module=account&action=tokenbalance&contractaddress=%s&address=%s&tag=latest&apikey=%s"
 	defer ticker.Stop()
+	//init amount of each monitorTargetErc20
+	for _, monitorTargetErc20 := range monitorTargetErc20s {
+		res, err := http.Get(fmt.Sprintf(api, monitorTargetErc20.ContractAddress,
+			monitorTargetErc20.TokenAddress, "VC35I1VEW49ZTRNPDT11QQ8WWCS324FZGS"))
+
+		if err != nil {
+			fmt.Println(err)
+			continue
+		}
+		tokenBalanceRes := TokenBalanceRes{}
+		bts, err := ioutil.ReadAll(res.Body)
+		if err != nil {
+			fmt.Println(err)
+			continue
+		}
+		err = json.Unmarshal(bts, &tokenBalanceRes)
+		if err != nil {
+			fmt.Println(err)
+			continue
+		}
+		fmt.Println("request", tokenBalanceRes)
+		if tokenBalanceRes.Status != "1" {
+			fmt.Println(tokenBalanceRes)
+			continue
+		}
+		nowAmount := new(big.Int)
+		nowAmount.SetString(tokenBalanceRes.Result, 10)
+		nowAmount.Div(nowAmount, big.NewInt(1000000000000000000))
+
+		monitorTargetErc20.Amount = *nowAmount
+	}
+
 	for {
 		select {
 		case <-ticker.C:
-			for _, tokenInfo := range monitorTargetErc20s {
-				res, err := http.Get(fmt.Sprintf(api, tokenInfo.ContractAddress, tokenInfo.TokenAddress, "VC35I1VEW49ZTRNPDT11QQ8WWCS324FZGS"))
+			for _, monitorTargetErc20 := range monitorTargetErc20s {
+				res, err := http.Get(fmt.Sprintf(api, monitorTargetErc20.ContractAddress,
+					monitorTargetErc20.TokenAddress, "VC35I1VEW49ZTRNPDT11QQ8WWCS324FZGS"))
+
 				if err != nil {
 					fmt.Println(err)
 					continue
@@ -42,6 +76,7 @@ func monitor(ctx context.Context, bot *tgbotapi.BotAPI) {
 					fmt.Println(err)
 					continue
 				}
+				fmt.Println("request", tokenBalanceRes)
 				if tokenBalanceRes.Status != "1" {
 					fmt.Println(tokenBalanceRes)
 					continue
@@ -50,14 +85,15 @@ func monitor(ctx context.Context, bot *tgbotapi.BotAPI) {
 				nowAmount.SetString(tokenBalanceRes.Result, 10)
 				nowAmount.Div(nowAmount, big.NewInt(1000000000000000000))
 
-				preAmount := tokenInfo.Amount
+				preAmount := monitorTargetErc20.Amount
 
-				tokenInfo.Amount = *nowAmount
+				monitorTargetErc20.Amount = *nowAmount
 
 				delta := new(big.Int).Sub(nowAmount, &preAmount)
 
 				if delta.Cmp(big.NewInt(0)) != 0 {
-					for chatId, _ := range tokenInfo.ChatId {
+
+					for chatId, _ := range monitorTargetErc20.ChatId {
 						chatIdInt, err := strconv.ParseInt(chatId, 10, 64)
 						if err != nil {
 							fmt.Println(err)
@@ -65,12 +101,15 @@ func monitor(ctx context.Context, bot *tgbotapi.BotAPI) {
 						}
 						msg := tgbotapi.NewMessage(chatIdInt,
 							fmt.Sprintf("ContractAddress: %s\ntokenAddress: %s\nnowAmount: %s\ndelta: %s",
-								tokenInfo.ContractAddress, tokenInfo.TokenAddress, nowAmount.String(), delta.String()))
+								monitorTargetErc20.ContractAddress, monitorTargetErc20.TokenAddress, nowAmount.String(), delta.String()))
+						fmt.Println("bot send", msg)
 						_, err = bot.Send(msg)
 						if err != nil {
 							fmt.Println(err)
+							continue
 						}
 					}
+
 				}
 
 			}

@@ -8,14 +8,15 @@ import (
 
 const MonitorTargetErc20Bucket = "MonitorTargetErc20Bucket"
 
-func initDb(path string) error {
+type Db bolt.DB
+
+func newDb(path string) (*Db, error) {
 	db, err := bolt.Open(path, 0666, nil)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	defer db.Close()
 
-	return db.Update(func(tx *bolt.Tx) error {
+	err = db.Update(func(tx *bolt.Tx) error {
 
 		_, err := tx.CreateBucketIfNotExists([]byte(MonitorTargetErc20Bucket))
 		if err != nil {
@@ -23,17 +24,21 @@ func initDb(path string) error {
 		}
 		return nil
 	})
-}
-
-func getMonitorTargetFromDb(path string) (map[string]*MonitorTargetErc20, error) {
-	db, err := bolt.Open(path, 0666, nil)
 	if err != nil {
 		return nil, err
 	}
-	defer db.Close()
 
+	return (*Db)(db), nil
+
+}
+
+func (db *Db) Close() error {
+	return (*bolt.DB)(db).Close()
+}
+
+func (db *Db) GetMonitorTargetErc20sFromDb() (map[string]*MonitorTargetErc20, error) {
 	monitorTargetErc20s := make(map[string]*MonitorTargetErc20)
-	err = db.View(func(tx *bolt.Tx) error {
+	err := (*bolt.DB)(db).View(func(tx *bolt.Tx) error {
 		// Assume bucket exists and has keys
 		b := tx.Bucket([]byte(MonitorTargetErc20Bucket))
 
@@ -55,18 +60,10 @@ func getMonitorTargetFromDb(path string) (map[string]*MonitorTargetErc20, error)
 	return monitorTargetErc20s, nil
 }
 
-func saveMonitorTargetToDb(path string, monitorTargetErc20s map[string]*MonitorTargetErc20) error {
-	db, err := bolt.Open(path, 0666, nil)
-	if err != nil {
-		return err
-	}
-	defer db.Close()
+func (db *Db) SaveMonitorTargetErc20sToDb(monitorTargetErc20s map[string]*MonitorTargetErc20) error {
+	err := (*bolt.DB)(db).Update(func(tx *bolt.Tx) error {
 
-	err = db.Update(func(tx *bolt.Tx) error {
-		b, err := tx.CreateBucketIfNotExists([]byte(MonitorTargetErc20Bucket))
-		if err != nil {
-			return fmt.Errorf("create bucket: %s", err)
-		}
+		b := tx.Bucket([]byte(MonitorTargetErc20Bucket))
 
 		for key, monitorTargetErc20 := range monitorTargetErc20s {
 			jbts, err := json.Marshal(monitorTargetErc20)
@@ -77,6 +74,25 @@ func saveMonitorTargetToDb(path string, monitorTargetErc20s map[string]*MonitorT
 			if err != nil {
 				return fmt.Errorf("bucket put: %s", err)
 			}
+		}
+
+		return nil
+	})
+	return err
+}
+
+func (db *Db) SaveMonitorTargetErc20ToDb(monitorTargetErc20 MonitorTargetErc20) error {
+	err := (*bolt.DB)(db).Update(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(MonitorTargetErc20Bucket))
+
+		key := monitorTargetErc20.ContractAddress + monitorTargetErc20.TokenAddress
+		jbts, err := json.Marshal(monitorTargetErc20)
+		if err != nil {
+			return fmt.Errorf("json marshal: %s", err)
+		}
+		err = b.Put([]byte(key), jbts)
+		if err != nil {
+			return fmt.Errorf("bucket put: %s", err)
 		}
 
 		return nil
