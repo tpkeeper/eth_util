@@ -10,13 +10,13 @@ import (
 )
 
 const (
-	addMonitorStep            = "addMonitor"
-	addContractAddressStep    = "addContractAddress"
-	addTokenAddressStep       = "addTokenAddress"
-	deleteMonitorStep         = "deleteMonitor"
-	deleteContractAddressStep = "deleteContractAddress"
-	deleteTokenAddressStep    = "deleteTokenAddress"
-	listMonitorStep           = "listMonitor"
+	addMonitorStep              = "addMonitor"
+	addContractAddressStep      = "addContractAddress"
+	addTokenAddressStep         = "addTokenAddress"
+	deleteMonitorStep           = "deleteMonitor"
+	deleteByContractAddressStep = "deleteContractAddress"
+	deleteByTokenAddressStep    = "deleteTokenAddress"
+	listMonitorStep             = "listMonitor"
 )
 
 var (
@@ -82,12 +82,6 @@ func main() {
 			if update.Message.IsCommand() {
 				handleMessageCommand(bot, update.Message)
 			} else {
-				if len(step) == 0 {
-					msg := tgbotapi.NewMessage(update.Message.Chat.ID, "")
-					msg.Text = "not a command"
-					bot.Send(msg)
-					continue
-				}
 				handleMessageText(bot, db, update.Message)
 			}
 		}

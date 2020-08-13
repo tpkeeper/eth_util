@@ -99,3 +99,16 @@ func (db *Db) SaveMonitorTargetErc20ToDb(monitorTargetErc20 MonitorTargetErc20) 
 	})
 	return err
 }
+func (db *Db) DelMonitorTargetErc20FromDb(key string) error {
+	err := (*bolt.DB)(db).Update(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(MonitorTargetErc20Bucket))
+
+		err := b.Delete([]byte(key))
+		if err != nil {
+			return fmt.Errorf("bucket save: %s", err)
+		}
+
+		return nil
+	})
+	return err
+}
