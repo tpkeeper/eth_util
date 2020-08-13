@@ -10,8 +10,29 @@ import (
 type MonitorTargetErc20 struct {
 	ContractAddress string
 	TokenAddress    string
-	Amount          big.Int             `json:"-"`
+	Amount          BigInt
 	ChatId          map[string]struct{} //key is subscriber Id
+}
+
+type BigInt struct {
+	big.Int
+}
+
+func (b BigInt) MarshalJSON() ([]byte, error) {
+	return []byte(b.String()), nil
+}
+
+func (b *BigInt) UnmarshalJSON(p []byte) error {
+	if string(p) == "null" {
+		return nil
+	}
+	var z big.Int
+	_, ok := z.SetString(string(p), 10)
+	if !ok {
+		return fmt.Errorf("not a valid big integer: %s", p)
+	}
+	b.Int = z
+	return nil
 }
 
 func (db *Db) GetMonitorTargetErc20sFromDb() (map[string]*MonitorTargetErc20, error) {
@@ -72,7 +93,6 @@ func (db *Db) SaveMonitorTargetErc20ToDb(monitorTargetErc20 MonitorTargetErc20) 
 		if err != nil {
 			return fmt.Errorf("bucket put: %s", err)
 		}
-
 		return nil
 	})
 	return err

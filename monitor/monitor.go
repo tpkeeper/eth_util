@@ -20,8 +20,6 @@ type TokenBalanceRes struct {
 	Result  string `json:"result"`
 }
 
-
-
 type Erc20Monitor struct {
 	db       *db.Db
 	notifier []notify.Notifier
@@ -70,8 +68,10 @@ func (m *Erc20Monitor) Start(ctx context.Context) {
 		nowAmount.SetString(tokenBalanceRes.Result, 10)
 		nowAmount.Div(nowAmount, big.NewInt(1000000000000000000))
 
-		monitorTargetErc20.Amount = *nowAmount
+		monitorTargetErc20.Amount = db.BigInt{*nowAmount}
 	}
+
+	m.db.SaveMonitorTargetErc20sToDb(monitorTargetErc20s)
 
 	for {
 		select {
@@ -112,13 +112,13 @@ func (m *Erc20Monitor) Start(ctx context.Context) {
 
 				preAmount := monitorTargetErc20.Amount
 
-				monitorTargetErc20.Amount = *nowAmount
+				monitorTargetErc20.Amount = db.BigInt{*nowAmount}
 
-				delta := new(big.Int).Sub(nowAmount, &preAmount)
+				delta := new(big.Int).Sub(nowAmount, &preAmount.Int)
 
 				if delta.Cmp(big.NewInt(0)) != 0 {
-					err:=m.db.SaveMonitorTargetErc20ToDb(*monitorTargetErc20)
-					if err!=nil{
+					err := m.db.SaveMonitorTargetErc20ToDb(*monitorTargetErc20)
+					if err != nil {
 						fmt.Println(err)
 					}
 					for chatId, _ := range monitorTargetErc20.ChatId {
