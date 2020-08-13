@@ -163,9 +163,7 @@ func handleMessageText(bot *tgbotapi.BotAPI, db *Db, message *tgbotapi.Message) 
 		contractAddr := message.Text
 		chatIdStr := strconv.FormatInt(message.Chat.ID, 10)
 		for key, monitorTargetErc20 := range monitorTargetErc20s {
-			fmt.Println("jjjjj", monitorTargetErc20.ChatId, monitorTargetErc20.ContractAddress, contractAddr)
 			if monitorTargetErc20.ContractAddress == contractAddr {
-				fmt.Println(monitorTargetErc20.ChatId)
 				if _, exist := monitorTargetErc20.ChatId[chatIdStr]; exist {
 					delete(monitorTargetErc20.ChatId, chatIdStr)
 					err := db.SaveMonitorTargetErc20ToDb(*monitorTargetErc20)
@@ -180,7 +178,6 @@ func handleMessageText(bot *tgbotapi.BotAPI, db *Db, message *tgbotapi.Message) 
 						fmt.Println(err)
 					}
 				}
-				fmt.Println(monitorTargetErc20.ChatId)
 			}
 		}
 
@@ -191,6 +188,34 @@ func handleMessageText(bot *tgbotapi.BotAPI, db *Db, message *tgbotapi.Message) 
 		}
 
 	case deleteByTokenAddressStep:
+		tokenAddr:=message.Text
+		chatIdStr := strconv.FormatInt(message.Chat.ID, 10)
+
+		for key, monitorTargetErc20 := range monitorTargetErc20s {
+			if monitorTargetErc20.TokenAddress == tokenAddr {
+				if _, exist := monitorTargetErc20.ChatId[chatIdStr]; exist {
+					delete(monitorTargetErc20.ChatId, chatIdStr)
+					err := db.SaveMonitorTargetErc20ToDb(*monitorTargetErc20)
+					if err != nil {
+						fmt.Println(err)
+					}
+				}
+				if len(monitorTargetErc20.ChatId) == 0 {
+					delete(monitorTargetErc20s, key)
+					err := db.DelMonitorTargetErc20FromDb(key)
+					if err != nil {
+						fmt.Println(err)
+					}
+				}
+			}
+		}
+
+		retMsg.Text = fmt.Sprintf("delete monitor ok! \ntoken address: %s\n", tokenAddr)
+		_, err := bot.Send(retMsg)
+		if err == nil {
+			step.Clear()
+		}
+
 	case listMonitorStep:
 	default:
 		step.Clear()
