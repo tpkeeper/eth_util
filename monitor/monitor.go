@@ -117,6 +117,10 @@ func (m *Erc20Monitor) Start(ctx context.Context) {
 				delta := new(big.Int).Sub(nowAmount, &preAmount)
 
 				if delta.Cmp(big.NewInt(0)) != 0 {
+					err:=m.db.SaveMonitorTargetErc20ToDb(*monitorTargetErc20)
+					if err!=nil{
+						fmt.Println(err)
+					}
 					for chatId, _ := range monitorTargetErc20.ChatId {
 						msg := fmt.Sprintf("ContractAddress: %s\ntokenAddress: %s\nnowAmount: %s\ndelta: %s",
 							monitorTargetErc20.ContractAddress, monitorTargetErc20.TokenAddress, nowAmount.String(), delta.String())
