@@ -1,16 +1,18 @@
-package main
+package monitor
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/go-telegram-bot-api/telegram-bot-api"
+	"github.com/tpkeeper/eth-util/db"
+	"github.com/tpkeeper/eth-util/notify"
 	"io/ioutil"
 	"math/big"
 	"net/http"
-	"strconv"
 	"time"
 )
+
+var api = "https://api.etherscan.io/api?module=account&action=tokenbalance&contractaddress=%s&address=%s&tag=latest&apikey=%s"
 
 type TokenBalanceRes struct {
 	Status  string `json:"status"`
@@ -18,10 +20,27 @@ type TokenBalanceRes struct {
 	Result  string `json:"result"`
 }
 
-func monitor(ctx context.Context, bot *tgbotapi.BotAPI) {
+
+
+type Erc20Monitor struct {
+	db       *db.Db
+	notifier []notify.Notifier
+}
+
+func NewErc20Monitor(db *db.Db, notifier []notify.Notifier) *Erc20Monitor {
+	return &Erc20Monitor{db, notifier}
+}
+
+func (m *Erc20Monitor) Start(ctx context.Context) {
+
 	ticker := time.NewTicker(time.Second * 10)
-	api := "https://api.etherscan.io/api?module=account&action=tokenbalance&contractaddress=%s&address=%s&tag=latest&apikey=%s"
 	defer ticker.Stop()
+
+	monitorTargetErc20s, err := m.db.GetMonitorTargetErc20sFromDb()
+	if err != nil {
+		panic(err)
+	}
+
 	//init amount of each monitorTargetErc20
 	for _, monitorTargetErc20 := range monitorTargetErc20s {
 		res, err := http.Get(fmt.Sprintf(api, monitorTargetErc20.ContractAddress,
@@ -57,6 +76,12 @@ func monitor(ctx context.Context, bot *tgbotapi.BotAPI) {
 	for {
 		select {
 		case <-ticker.C:
+
+			monitorTargetErc20s, err := m.db.GetMonitorTargetErc20sFromDb()
+			if err != nil {
+				fmt.Println(err)
+				continue
+			}
 			for _, monitorTargetErc20 := range monitorTargetErc20s {
 				res, err := http.Get(fmt.Sprintf(api, monitorTargetErc20.ContractAddress,
 					monitorTargetErc20.TokenAddress, "VC35I1VEW49ZTRNPDT11QQ8WWCS324FZGS"))
@@ -92,21 +117,15 @@ func monitor(ctx context.Context, bot *tgbotapi.BotAPI) {
 				delta := new(big.Int).Sub(nowAmount, &preAmount)
 
 				if delta.Cmp(big.NewInt(0)) != 0 {
-
 					for chatId, _ := range monitorTargetErc20.ChatId {
-						chatIdInt, err := strconv.ParseInt(chatId, 10, 64)
-						if err != nil {
-							fmt.Println(err)
-							continue
-						}
-						msg := tgbotapi.NewMessage(chatIdInt,
-							fmt.Sprintf("ContractAddress: %s\ntokenAddress: %s\nnowAmount: %s\ndelta: %s",
-								monitorTargetErc20.ContractAddress, monitorTargetErc20.TokenAddress, nowAmount.String(), delta.String()))
-						fmt.Println("bot send", msg)
-						_, err = bot.Send(msg)
-						if err != nil {
-							fmt.Println(err)
-							continue
+						msg := fmt.Sprintf("ContractAddress: %s\ntokenAddress: %s\nnowAmount: %s\ndelta: %s",
+							monitorTargetErc20.ContractAddress, monitorTargetErc20.TokenAddress, nowAmount.String(), delta.String())
+						for _, notifier := range m.notifier {
+							err = notifier.Notify(chatId, msg)
+							if err != nil {
+								fmt.Println(err)
+								continue
+							}
 						}
 					}
 
