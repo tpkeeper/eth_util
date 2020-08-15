@@ -6,9 +6,9 @@ import (
 )
 
 const MonitorTargetErc20Bucket = "MonitorTargetErc20Bucket"
+const TelegramBotStepBucket = "ChatIdStepBucket"
 
 type Db bolt.DB
-
 
 func NewDb(path string) (*Db, error) {
 	db, err := bolt.Open(path, 0666, nil)
@@ -19,6 +19,11 @@ func NewDb(path string) (*Db, error) {
 	err = db.Update(func(tx *bolt.Tx) error {
 
 		_, err := tx.CreateBucketIfNotExists([]byte(MonitorTargetErc20Bucket))
+		if err != nil {
+			return fmt.Errorf("create bucket: %s", err)
+		}
+
+		_, err = tx.CreateBucketIfNotExists([]byte(TelegramBotStepBucket))
 		if err != nil {
 			return fmt.Errorf("create bucket: %s", err)
 		}
@@ -35,4 +40,3 @@ func NewDb(path string) (*Db, error) {
 func (db *Db) Close() error {
 	return (*bolt.DB)(db).Close()
 }
-

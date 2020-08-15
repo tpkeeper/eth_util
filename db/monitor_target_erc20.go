@@ -18,6 +18,32 @@ type BigInt struct {
 	big.Int
 }
 
+type Stack []string
+
+func (s *Stack) Pop() (string, error) {
+	if len(*s) == 0 {
+		return "", fmt.Errorf("empty")
+	}
+	r := (*s)[len(*s)-1]
+	*s = (*s)[0 : len(*s)-1]
+	return r, nil
+}
+
+func (s *Stack) Push(e string) {
+	*s = append(*s, e)
+}
+
+func (s *Stack) Top() string {
+	if len(*s) == 0 {
+		return ""
+	}
+	return (*s)[len(*s)-1]
+}
+
+func (s *Stack) Clear() {
+	*s = (*s)[:0]
+}
+
 func (b BigInt) MarshalJSON() ([]byte, error) {
 	return []byte(b.String()), nil
 }
@@ -97,6 +123,7 @@ func (db *Db) SaveMonitorTargetErc20ToDb(monitorTargetErc20 MonitorTargetErc20) 
 	})
 	return err
 }
+
 func (db *Db) DelMonitorTargetErc20FromDb(key string) error {
 	err := (*bolt.DB)(db).Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(MonitorTargetErc20Bucket))
@@ -109,4 +136,40 @@ func (db *Db) DelMonitorTargetErc20FromDb(key string) error {
 		return nil
 	})
 	return err
+}
+
+func (db *Db) SaveStepToDb(chatId string, step Stack) error {
+	err := (*bolt.DB)(db).Update(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(TelegramBotStepBucket))
+		jbts, err := json.Marshal(step)
+		if err != nil {
+			return fmt.Errorf("json marshal: %s", err)
+		}
+		err = b.Put([]byte(chatId), jbts)
+		if err != nil {
+			return fmt.Errorf("bucket put: %s", err)
+		}
+
+		return nil
+	})
+	return err
+}
+
+func (db *Db) GetStepFromDb(chatId string) (Stack, error) {
+	var step Stack
+	err := (*bolt.DB)(db).View(func(tx *bolt.Tx) error {
+		// Assume bucket exists and has keys
+		b := tx.Bucket([]byte(TelegramBotStepBucket))
+
+		bts := b.Get([]byte(chatId))
+
+		err := json.Unmarshal(bts, &step)
+		if err != nil && len(bts) != 0 {
+			return fmt.Errorf("db unmarshal: %s", err)
+		}
+
+		return nil
+	})
+
+	return step, err
 }

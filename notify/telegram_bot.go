@@ -6,6 +6,7 @@ import (
 	"github.com/tpkeeper/eth-util/db"
 	"log"
 	"strconv"
+	"strings"
 )
 
 const (
@@ -15,36 +16,11 @@ const (
 	deleteByContractAddressStep = "deleteContractAddress"
 	deleteByTokenAddressStep    = "deleteTokenAddress"
 	listMonitorStep             = "listMonitor"
+
+	warnBedStep = "sorry,you are in bad step! now return to main menu:"
 )
 
-type Stack []string
-
-func (s *Stack) Pop() (string, error) {
-	if len(*s) == 0 {
-		return "", fmt.Errorf("empty")
-	}
-	r := (*s)[len(*s)-1]
-	*s = (*s)[0 : len(*s)-1]
-	return r, nil
-}
-
-func (s *Stack) Push(e string) {
-	*s = append(*s, e)
-}
-
-func (s *Stack) Top() string {
-	if len(*s) == 0 {
-		return ""
-	}
-	return (*s)[len(*s)-1]
-}
-
-func (s *Stack) Clear() {
-	*s = (*s)[:0]
-}
-
 var (
-	step                = new(Stack) //store pre step
 	tempContractAddress string
 	mainMenu            = tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(
@@ -125,69 +101,109 @@ func (tg *TelegramBot) handleMessageCommand(message *tgbotapi.Message) {
 		msg.Text = "hello! I`m tpkeeper`s bot.this is the main menu:\n"
 		msg.ReplyMarkup = mainMenu
 	default:
-		msg.Text = "sorry,this command not exist!"
+		msg.Text = "sorry,this command not exist!\n" +
+			"command list :\n" +
+			"1: /start"
 	}
 	tg.Send(msg)
 }
 
 func (tg *TelegramBot) handleCallbackQuery(callbackQuery *tgbotapi.CallbackQuery) {
+	chatIdStr := strconv.FormatInt(callbackQuery.Message.Chat.ID, 10)
+	step, err := tg.db.GetStepFromDb(chatIdStr)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
 	tg.AnswerCallbackQuery(tgbotapi.NewCallback(callbackQuery.ID, callbackQuery.Data))
-	msg := tgbotapi.NewMessage(callbackQuery.Message.Chat.ID, "")
+	retMsg := tgbotapi.NewMessage(callbackQuery.Message.Chat.ID, "")
 	switch callbackQuery.Data {
 	case addMonitorStep:
-		msg.Text = "please enter contract address:"
-		_, err := tg.Send(msg)
+		retMsg.Text = "please enter contract address:"
+		_, err := tg.Send(retMsg)
 		if err == nil {
 			step.Clear()
 			step.Push(addMonitorStep)
 		}
 	case deleteMonitorStep:
-		msg.Text = "please select one:"
-		msg.ReplyMarkup = deleteMenu
-		_, err := tg.Send(msg)
+		retMsg.Text = "please select one:"
+		retMsg.ReplyMarkup = deleteMenu
+		_, err := tg.Send(retMsg)
 		if err == nil {
 			step.Clear()
 			step.Push(deleteMonitorStep)
 		}
 	case deleteByContractAddressStep:
 		if step.Top() != deleteMonitorStep {
-			msg.Text = "bad menu, return main menu:"
-			msg.ReplyMarkup = mainMenu
-			tg.Send(msg)
+			retMsg.Text = warnBedStep
+			retMsg.ReplyMarkup = mainMenu
+			tg.Send(retMsg)
 			step.Clear()
-			return
-		}
-
-		msg.Text = "please enter contract address:"
-		_, err := tg.Send(msg)
-		if err == nil {
-			step.Push(deleteByContractAddressStep)
+		} else {
+			retMsg.Text = "please enter contract address:"
+			_, err := tg.Send(retMsg)
+			if err == nil {
+				step.Push(deleteByContractAddressStep)
+			}
 		}
 	case deleteByTokenAddressStep:
 		if step.Top() != deleteMonitorStep {
-			msg.Text = "bad menu, return main menu:"
-			msg.ReplyMarkup = mainMenu
-			tg.Send(msg)
+			retMsg.Text = warnBedStep
+			retMsg.ReplyMarkup = mainMenu
+			tg.Send(retMsg)
 			step.Clear()
-			return
-		}
-		msg.Text = "please enter token address:"
-		_, err := tg.Send(msg)
-		if err == nil {
-			step.Push(deleteByTokenAddressStep)
+		} else {
+			retMsg.Text = "please enter token address:"
+			_, err := tg.Send(retMsg)
+			if err == nil {
+				step.Push(deleteByTokenAddressStep)
+			}
 		}
 	case listMonitorStep:
+		monitorTargetErc20s, err := tg.db.GetMonitorTargetErc20sFromDb()
+		if err != nil {
+			fmt.Println(err)
+			step.Clear()
+			retMsg.Text = "get list err, return main menu:"
+			retMsg.ReplyMarkup = mainMenu
+			tg.Send(retMsg)
+		} else {
+			chatIdStr := strconv.FormatInt(callbackQuery.Message.Chat.ID, 10)
+			var strBuilder strings.Builder
+			for _, monitorTargetErc20 := range monitorTargetErc20s {
+				strBuilder.WriteString(fmt.Sprintf("\ncontract:%s\n", monitorTargetErc20.ContractAddress))
+				if _, exist := monitorTargetErc20.ChatId[chatIdStr]; exist {
+					strBuilder.WriteString(fmt.Sprintf("->token address:%s\n", monitorTargetErc20.TokenAddress))
+				}
+			}
+
+			retMsg.Text = strBuilder.String()
+			_, err = tg.Send(retMsg)
+			if err == nil {
+				step.Clear()
+			}
+		}
 	default:
 		step.Clear()
-		msg.Text = "bad menu, return main menu:"
-		msg.ReplyMarkup = mainMenu
-		tg.Send(msg)
+		retMsg.Text = warnBedStep
+		retMsg.ReplyMarkup = mainMenu
+		tg.Send(retMsg)
+	}
+
+	err = tg.db.SaveStepToDb(chatIdStr, step)
+	if err != nil {
+		fmt.Println(err)
 	}
 }
 
 func (tg *TelegramBot) handleMessageText(message *tgbotapi.Message) {
+	chatIdStr := strconv.FormatInt(message.Chat.ID, 10)
+	step, err := tg.db.GetStepFromDb(chatIdStr)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
 	retMsg := tgbotapi.NewMessage(message.Chat.ID, "")
-
 	switch step.Top() {
 	case addMonitorStep:
 		tempContractAddress = message.Text
@@ -201,67 +217,67 @@ func (tg *TelegramBot) handleMessageText(message *tgbotapi.Message) {
 		if err != nil {
 			fmt.Println(err)
 			step.Clear()
-			retMsg.Text = "bad step, return main menu:"
+			retMsg.Text = warnBedStep
 			retMsg.ReplyMarkup = mainMenu
 			tg.Send(retMsg)
-			return
-		}
-		key := tempContractAddress + message.Text
-		if monitorTarget, exist := monitorTargetErc20s[key]; exist {
-			monitorTarget.ChatId[strconv.FormatInt(message.Chat.ID, 10)] = struct{}{}
 		} else {
-			chatIdMap := make(map[string]struct{})
-			chatIdMap[strconv.FormatInt(message.Chat.ID, 10)] = struct{}{}
-			monitorTargetErc20s[key] = &db.MonitorTargetErc20{
-				ContractAddress: tempContractAddress, TokenAddress: message.Text, ChatId: chatIdMap}
-		}
 
-		err = tg.db.SaveMonitorTargetErc20ToDb(*monitorTargetErc20s[key])
-		if err != nil {
-			fmt.Printf("saveMonitorTargetToDb %s", err)
-		}
+			key := tempContractAddress + message.Text
+			if monitorTarget, exist := monitorTargetErc20s[key]; exist {
+				monitorTarget.ChatId[strconv.FormatInt(message.Chat.ID, 10)] = struct{}{}
+			} else {
+				chatIdMap := make(map[string]struct{})
+				chatIdMap[chatIdStr] = struct{}{}
+				monitorTargetErc20s[key] = &db.MonitorTargetErc20{
+					ContractAddress: tempContractAddress, TokenAddress: message.Text, ChatId: chatIdMap}
+			}
 
-		retMsg.Text = fmt.Sprintf("add monitor ok! \ncontract address: %s \ntoken address: %s\n",
-			tempContractAddress, message.Text)
-		_, err = tg.Send(retMsg)
-		if err == nil {
-			step.Clear()
+			err = tg.db.SaveMonitorTargetErc20ToDb(*monitorTargetErc20s[key])
+			if err != nil {
+				fmt.Printf("saveMonitorTargetToDb %s", err)
+			}
+
+			retMsg.Text = fmt.Sprintf("add monitor ok! \ncontract address: %s \ntoken address: %s\n",
+				tempContractAddress, message.Text)
+			_, err = tg.Send(retMsg)
+			if err == nil {
+				step.Clear()
+			}
 		}
 	case deleteByContractAddressStep:
 		monitorTargetErc20s, err := tg.db.GetMonitorTargetErc20sFromDb()
 		if err != nil {
 			fmt.Println(err)
 			step.Clear()
-			retMsg.Text = "bad step, return main menu:"
+			retMsg.Text = warnBedStep
 			retMsg.ReplyMarkup = mainMenu
 			tg.Send(retMsg)
-			return
-		}
-		contractAddr := message.Text
-		chatIdStr := strconv.FormatInt(message.Chat.ID, 10)
-		for key, monitorTargetErc20 := range monitorTargetErc20s {
-			if monitorTargetErc20.ContractAddress == contractAddr {
-				if _, exist := monitorTargetErc20.ChatId[chatIdStr]; exist {
-					delete(monitorTargetErc20.ChatId, chatIdStr)
-					err := tg.db.SaveMonitorTargetErc20ToDb(*monitorTargetErc20)
-					if err != nil {
-						fmt.Println(err)
+		} else {
+			contractAddr := message.Text
+			for key, monitorTargetErc20 := range monitorTargetErc20s {
+				if monitorTargetErc20.ContractAddress == contractAddr {
+					if _, exist := monitorTargetErc20.ChatId[chatIdStr]; exist {
+						delete(monitorTargetErc20.ChatId, chatIdStr)
+						err := tg.db.SaveMonitorTargetErc20ToDb(*monitorTargetErc20)
+						if err != nil {
+							fmt.Println(err)
+						}
 					}
-				}
-				if len(monitorTargetErc20.ChatId) == 0 {
-					delete(monitorTargetErc20s, key)
-					err := tg.db.DelMonitorTargetErc20FromDb(key)
-					if err != nil {
-						fmt.Println(err)
+					if len(monitorTargetErc20.ChatId) == 0 {
+						delete(monitorTargetErc20s, key)
+						err := tg.db.DelMonitorTargetErc20FromDb(key)
+						if err != nil {
+							fmt.Println(err)
+						}
 					}
 				}
 			}
-		}
 
-		retMsg.Text = fmt.Sprintf("delete monitor ok! \ncontract address: %s\n", contractAddr)
-		_, err = tg.Send(retMsg)
-		if err == nil {
-			step.Clear()
+			retMsg.Text = fmt.Sprintf("delete monitor ok! \ncontract address: %s\n", contractAddr)
+			_, err = tg.Send(retMsg)
+			if err == nil {
+				step.Clear()
+			}
 		}
 
 	case deleteByTokenAddressStep:
@@ -269,44 +285,45 @@ func (tg *TelegramBot) handleMessageText(message *tgbotapi.Message) {
 		if err != nil {
 			fmt.Println(err)
 			step.Clear()
-			retMsg.Text = "bad step, return main menu:"
+			retMsg.Text = warnBedStep
 			retMsg.ReplyMarkup = mainMenu
 			tg.Send(retMsg)
-			return
-		}
-		tokenAddr := message.Text
-		chatIdStr := strconv.FormatInt(message.Chat.ID, 10)
-
-		for key, monitorTargetErc20 := range monitorTargetErc20s {
-			if monitorTargetErc20.TokenAddress == tokenAddr {
-				if _, exist := monitorTargetErc20.ChatId[chatIdStr]; exist {
-					delete(monitorTargetErc20.ChatId, chatIdStr)
-					err := tg.db.SaveMonitorTargetErc20ToDb(*monitorTargetErc20)
-					if err != nil {
-						fmt.Println(err)
+		} else {
+			tokenAddr := message.Text
+			for key, monitorTargetErc20 := range monitorTargetErc20s {
+				if monitorTargetErc20.TokenAddress == tokenAddr {
+					if _, exist := monitorTargetErc20.ChatId[chatIdStr]; exist {
+						delete(monitorTargetErc20.ChatId, chatIdStr)
+						err := tg.db.SaveMonitorTargetErc20ToDb(*monitorTargetErc20)
+						if err != nil {
+							fmt.Println(err)
+						}
 					}
-				}
-				if len(monitorTargetErc20.ChatId) == 0 {
-					delete(monitorTargetErc20s, key)
-					err := tg.db.DelMonitorTargetErc20FromDb(key)
-					if err != nil {
-						fmt.Println(err)
+					if len(monitorTargetErc20.ChatId) == 0 {
+						delete(monitorTargetErc20s, key)
+						err := tg.db.DelMonitorTargetErc20FromDb(key)
+						if err != nil {
+							fmt.Println(err)
+						}
 					}
 				}
 			}
+
+			retMsg.Text = fmt.Sprintf("delete monitor ok! \ntoken address: %s\n", tokenAddr)
+			_, err = tg.Send(retMsg)
+			if err == nil {
+				step.Clear()
+			}
 		}
 
-		retMsg.Text = fmt.Sprintf("delete monitor ok! \ntoken address: %s\n", tokenAddr)
-		_, err = tg.Send(retMsg)
-		if err == nil {
-			step.Clear()
-		}
-
-	case listMonitorStep:
 	default:
 		step.Clear()
-		retMsg.Text = "bad step, return main menu:"
+		retMsg.Text = warnBedStep
 		retMsg.ReplyMarkup = mainMenu
 		tg.Send(retMsg)
+	}
+	err = tg.db.SaveStepToDb(chatIdStr, step)
+	if err != nil {
+		fmt.Println(err)
 	}
 }
