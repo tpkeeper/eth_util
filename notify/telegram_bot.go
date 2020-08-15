@@ -21,8 +21,7 @@ const (
 )
 
 var (
-	tempContractAddress string
-	mainMenu            = tgbotapi.NewInlineKeyboardMarkup(
+	mainMenu = tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("Add Monitor", addMonitorStep),
 		),
@@ -170,10 +169,19 @@ func (tg *TelegramBot) handleCallbackQuery(callbackQuery *tgbotapi.CallbackQuery
 		} else {
 			chatIdStr := strconv.FormatInt(callbackQuery.Message.Chat.ID, 10)
 			var strBuilder strings.Builder
+			tmp := make(map[string][]string)
+
 			for _, monitorTargetErc20 := range monitorTargetErc20s {
-				strBuilder.WriteString(fmt.Sprintf("\ncontract:%s\n", monitorTargetErc20.ContractAddress))
 				if _, exist := monitorTargetErc20.ChatId[chatIdStr]; exist {
-					strBuilder.WriteString(fmt.Sprintf("->token address:%s\n", monitorTargetErc20.TokenAddress))
+					tmp[monitorTargetErc20.ContractAddress] = append(tmp[monitorTargetErc20.ContractAddress],
+						monitorTargetErc20.TokenAddress)
+				}
+			}
+
+			for contractAddr, tokenAddrs := range tmp {
+				strBuilder.WriteString(fmt.Sprintf("\ncontract: %s\n", contractAddr))
+				for _, addr := range tokenAddrs {
+					strBuilder.WriteString(fmt.Sprintf("->token address: %s\n", addr))
 				}
 			}
 
@@ -206,14 +214,23 @@ func (tg *TelegramBot) handleMessageText(message *tgbotapi.Message) {
 	retMsg := tgbotapi.NewMessage(message.Chat.ID, "")
 	switch step.Top() {
 	case addMonitorStep:
-		tempContractAddress = message.Text
-		retMsg.Text = "please enter token address:"
-		_, err := tg.Send(retMsg)
-		if err == nil {
-			step.Push(addContractAddressStep)
+		err := tg.db.SaveTempContractAddrToDb(chatIdStr, message.Text)
+		if err != nil {
+			fmt.Println(err)
+			step.Clear()
+			retMsg.Text = warnBedStep
+			retMsg.ReplyMarkup = mainMenu
+			tg.Send(retMsg)
+		} else {
+			retMsg.Text = "please enter token address:"
+			_, err = tg.Send(retMsg)
+			if err == nil {
+				step.Push(addContractAddressStep)
+			}
 		}
 	case addContractAddressStep:
 		monitorTargetErc20s, err := tg.db.GetMonitorTargetErc20sFromDb()
+		tempContractAddress, err := tg.db.GetTempContractAddrFromDb(chatIdStr)
 		if err != nil {
 			fmt.Println(err)
 			step.Clear()

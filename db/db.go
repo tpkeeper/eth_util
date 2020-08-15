@@ -7,6 +7,7 @@ import (
 
 const MonitorTargetErc20Bucket = "MonitorTargetErc20Bucket"
 const TelegramBotStepBucket = "ChatIdStepBucket"
+const TelegramBotTempContractBucket = "TelegramBotTempContractBucket"
 
 type Db bolt.DB
 
@@ -24,6 +25,11 @@ func NewDb(path string) (*Db, error) {
 		}
 
 		_, err = tx.CreateBucketIfNotExists([]byte(TelegramBotStepBucket))
+		if err != nil {
+			return fmt.Errorf("create bucket: %s", err)
+		}
+
+		_, err = tx.CreateBucketIfNotExists([]byte(TelegramBotTempContractBucket))
 		if err != nil {
 			return fmt.Errorf("create bucket: %s", err)
 		}

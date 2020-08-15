@@ -64,9 +64,7 @@ func (b *BigInt) UnmarshalJSON(p []byte) error {
 func (db *Db) GetMonitorTargetErc20sFromDb() (map[string]*MonitorTargetErc20, error) {
 	monitorTargetErc20s := make(map[string]*MonitorTargetErc20)
 	err := (*bolt.DB)(db).View(func(tx *bolt.Tx) error {
-		// Assume bucket exists and has keys
 		b := tx.Bucket([]byte(MonitorTargetErc20Bucket))
-
 		c := b.Cursor()
 		for k, v := c.First(); k != nil; k, v = c.Next() {
 			monitorTargetErc20 := MonitorTargetErc20{}
@@ -87,9 +85,7 @@ func (db *Db) GetMonitorTargetErc20sFromDb() (map[string]*MonitorTargetErc20, er
 
 func (db *Db) SaveMonitorTargetErc20sToDb(monitorTargetErc20s map[string]*MonitorTargetErc20) error {
 	err := (*bolt.DB)(db).Update(func(tx *bolt.Tx) error {
-
 		b := tx.Bucket([]byte(MonitorTargetErc20Bucket))
-
 		for key, monitorTargetErc20 := range monitorTargetErc20s {
 			jbts, err := json.Marshal(monitorTargetErc20)
 			if err != nil {
@@ -100,7 +96,6 @@ func (db *Db) SaveMonitorTargetErc20sToDb(monitorTargetErc20s map[string]*Monito
 				return fmt.Errorf("bucket put: %s", err)
 			}
 		}
-
 		return nil
 	})
 	return err
@@ -109,7 +104,6 @@ func (db *Db) SaveMonitorTargetErc20sToDb(monitorTargetErc20s map[string]*Monito
 func (db *Db) SaveMonitorTargetErc20ToDb(monitorTargetErc20 MonitorTargetErc20) error {
 	err := (*bolt.DB)(db).Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(MonitorTargetErc20Bucket))
-
 		key := monitorTargetErc20.ContractAddress + monitorTargetErc20.TokenAddress
 		jbts, err := json.Marshal(monitorTargetErc20)
 		if err != nil {
@@ -158,16 +152,44 @@ func (db *Db) SaveStepToDb(chatId string, step Stack) error {
 func (db *Db) GetStepFromDb(chatId string) (Stack, error) {
 	var step Stack
 	err := (*bolt.DB)(db).View(func(tx *bolt.Tx) error {
-		// Assume bucket exists and has keys
 		b := tx.Bucket([]byte(TelegramBotStepBucket))
-
-		bts := b.Get([]byte(chatId))
-
+		bts := b.Get([]byte(chatId)) //return nil if empty
 		err := json.Unmarshal(bts, &step)
 		if err != nil && len(bts) != 0 {
 			return fmt.Errorf("db unmarshal: %s", err)
 		}
 
+		return nil
+	})
+
+	return step, err
+}
+
+func (db *Db) SaveTempContractAddrToDb(chatId string, addr string) error {
+	err := (*bolt.DB)(db).Update(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(TelegramBotTempContractBucket))
+		jbts, err := json.Marshal(addr)
+		if err != nil {
+			return fmt.Errorf("json marshal: %s", err)
+		}
+		err = b.Put([]byte(chatId), jbts)
+		if err != nil {
+			return fmt.Errorf("bucket put: %s", err)
+		}
+		return nil
+	})
+	return err
+}
+
+func (db *Db) GetTempContractAddrFromDb(chatId string) (string, error) {
+	var step string
+	err := (*bolt.DB)(db).View(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(TelegramBotTempContractBucket))
+		bts := b.Get([]byte(chatId)) //return nil if empty
+		err := json.Unmarshal(bts, &step)
+		if err != nil && len(bts) != 0 {
+			return fmt.Errorf("db unmarshal: %s", err)
+		}
 		return nil
 	})
 
