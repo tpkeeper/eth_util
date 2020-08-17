@@ -100,8 +100,8 @@ func (tg *TelegramBot) handleMessageCommand(message *tgbotapi.Message) {
 		msg.Text = "hello! I`m tpkeeper`s bot.this is the main menu:\n"
 		msg.ReplyMarkup = mainMenu
 	default:
-		msg.Text = "sorry,this command not exist!\n" +
-			"command list :\n" +
+		msg.Text = "sorry,this command doesn`t  exist!\n" +
+			"the command list :\n" +
 			"1: /start"
 	}
 	tg.Send(msg)
@@ -212,6 +212,23 @@ func (tg *TelegramBot) handleMessageText(message *tgbotapi.Message) {
 		return
 	}
 	retMsg := tgbotapi.NewMessage(message.Chat.ID, "")
+
+	//validate address when in step
+	if len(step) != 0 && !IsHexAddress(message.Text) {
+		step.Clear()
+		retMsg.Text = "not a hex address! now return to main menu:"
+		retMsg.ReplyMarkup = mainMenu
+		tg.Send(retMsg)
+		//save step before return
+		err = tg.db.SaveStepToDb(chatIdStr, step)
+		if err != nil {
+			fmt.Println(err)
+		}
+		return
+	}
+	//save lower case
+	message.Text = strings.ToLower(message.Text)
+
 	switch step.Top() {
 	case addMonitorStep:
 		err := tg.db.SaveTempContractAddrToDb(chatIdStr, message.Text)
@@ -343,4 +360,34 @@ func (tg *TelegramBot) handleMessageText(message *tgbotapi.Message) {
 	if err != nil {
 		fmt.Println(err)
 	}
+}
+
+func IsHexAddress(s string) bool {
+	if has0xPrefix(s) {
+		s = s[2:]
+	}
+	return len(s) == 2*20 && isHex(s)
+}
+
+// has0xPrefix validates str begins with '0x' or '0X'.
+func has0xPrefix(str string) bool {
+	return len(str) >= 2 && str[0] == '0' && (str[1] == 'x' || str[1] == 'X')
+}
+
+// isHexCharacter returns bool of c being a valid hexadecimal.
+func isHexCharacter(c byte) bool {
+	return ('0' <= c && c <= '9') || ('a' <= c && c <= 'f') || ('A' <= c && c <= 'F')
+}
+
+// isHex validates whether each byte is valid hexadecimal string.
+func isHex(str string) bool {
+	if len(str)%2 != 0 {
+		return false
+	}
+	for _, c := range []byte(str) {
+		if !isHexCharacter(c) {
+			return false
+		}
+	}
+	return true
 }
