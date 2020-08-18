@@ -3,11 +3,14 @@ package log
 import (
 	"github.com/rs/zerolog"
 	"os"
-	"time"
 )
 
 var Logger zerolog.Logger
 
 func init() {
-	Logger = zerolog.New(zerolog.ConsoleWriter{Out: os.Stdout, TimeFormat: time.RFC3339}).With().Caller().Timestamp().Logger()
+	Logger = zerolog.New(os.Stdout).With().Caller().Timestamp().Logger()
+}
+
+func Level(level int8) {
+	Logger.Level(zerolog.Level(level))
 }

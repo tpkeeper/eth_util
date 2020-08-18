@@ -11,10 +11,10 @@ import (
 
 const dbFilePath = "./bot.db"
 
-
 type config struct {
 	TgToken      string
 	EtherscanKey string
+	LogLevel     int8
 }
 
 func main() {
@@ -23,7 +23,12 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	log.Logger.Info().Str("tgToken",cfg.TgToken).Str("etherscanKey",cfg.EtherscanKey).Msg("config")
+
+	log.Level(cfg.LogLevel)
+	log.Logger.Info().
+		Str("tgToken", cfg.TgToken).
+		Str("etherscanKey", cfg.EtherscanKey).
+		Msg("config")
 
 	db, err := db.NewDb(dbFilePath)
 	if err != nil {
