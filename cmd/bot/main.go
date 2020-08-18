@@ -2,9 +2,9 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"github.com/BurntSushi/toml"
 	"github.com/tpkeeper/eth-util/db"
+	"github.com/tpkeeper/eth-util/log"
 	"github.com/tpkeeper/eth-util/monitor"
 	"github.com/tpkeeper/eth-util/notify"
 )
@@ -23,7 +23,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	fmt.Println(cfg)
+	log.Logger.Info().Str("tgToken",cfg.TgToken).Str("etherscanKey",cfg.EtherscanKey).Msg("config")
 
 	db, err := db.NewDb(dbFilePath)
 	if err != nil {
