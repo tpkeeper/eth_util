@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"github.com/BurntSushi/toml"
+	"github.com/sirupsen/logrus"
 	"github.com/tpkeeper/eth-util/db"
 	"github.com/tpkeeper/eth-util/log"
 	"github.com/tpkeeper/eth-util/monitor"
@@ -14,7 +15,7 @@ const dbFilePath = "./bot.db"
 type config struct {
 	TgToken      string
 	EtherscanKey string
-	LogLevel     int8
+	LogFilePath  string
 }
 
 func main() {
@@ -23,12 +24,12 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+	log.InitLogFile(cfg.LogFilePath)
 
-	log.Level(cfg.LogLevel)
-	log.Logger.Info().
-		Str("tgToken", cfg.TgToken).
-		Str("etherscanKey", cfg.EtherscanKey).
-		Msg("config")
+	logrus.WithFields(logrus.Fields{
+		"tgToken":      cfg.TgToken,
+		"etherScanKey": cfg.EtherscanKey,
+	}).Info("config info")
 
 	db, err := db.NewDb(dbFilePath)
 	if err != nil {

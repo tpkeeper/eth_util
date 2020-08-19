@@ -4,8 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/sirupsen/logrus"
 	"github.com/tpkeeper/eth-util/db"
-	"github.com/tpkeeper/eth-util/log"
 	"github.com/tpkeeper/eth-util/notify"
 	"io/ioutil"
 	"math/big"
@@ -46,26 +46,24 @@ func (m *Erc20Monitor) Start(ctx context.Context) {
 		res, err := http.Get(api)
 
 		if err != nil {
-			log.Logger.Err(err).Send()
+			logrus.Error(err)
 			continue
 		}
 		tokenBalanceRes := TokenBalanceRes{}
 		bts, err := ioutil.ReadAll(res.Body)
 		if err != nil {
-			log.Logger.Err(err).Send()
+			logrus.Error(err)
 			continue
 		}
 		err = json.Unmarshal(bts, &tokenBalanceRes)
 		if err != nil {
-			log.Logger.Err(err).Send()
+			logrus.Error(err)
 			continue
 		}
 		if tokenBalanceRes.Status != "1" {
-			log.Logger.Error().
-				Str("status", tokenBalanceRes.Status).
-				Str("result", tokenBalanceRes.Result).
-				Str("msg", tokenBalanceRes.Message).
-				Send()
+			logrus.WithFields(logrus.Fields{
+				"tokenBalanceRes": tokenBalanceRes,
+			}).Error(err)
 			continue
 		}
 		nowAmount := new(big.Int)
@@ -83,7 +81,7 @@ func (m *Erc20Monitor) Start(ctx context.Context) {
 
 			monitorTargetErc20s, err := m.db.GetMonitorTargetErc20sFromDb()
 			if err != nil {
-				log.Logger.Err(err).Send()
+				logrus.Error(err)
 				continue
 			}
 			for _, monitorTargetErc20 := range monitorTargetErc20s {
@@ -92,31 +90,25 @@ func (m *Erc20Monitor) Start(ctx context.Context) {
 				res, err := http.Get(api)
 
 				if err != nil {
-					log.Logger.Err(err).Str("api", api).Send()
+					logrus.Error(err)
 					continue
 				}
 				tokenBalanceRes := TokenBalanceRes{}
 				bts, err := ioutil.ReadAll(res.Body)
 				if err != nil {
-					log.Logger.Err(err).Send()
+					logrus.Error(err)
 					continue
 				}
 				err = json.Unmarshal(bts, &tokenBalanceRes)
 				if err != nil {
-					log.Logger.Err(err).Send()
+					logrus.Error(err)
 					continue
 				}
-				log.Logger.Info().
-					Str("api", api).
-					Str("res", tokenBalanceRes.Result).
-					Send()
 
 				if tokenBalanceRes.Status != "1" {
-					log.Logger.Error().
-						Str("status", tokenBalanceRes.Status).
-						Str("result", tokenBalanceRes.Result).
-						Str("msg", tokenBalanceRes.Message).
-						Send()
+					logrus.WithFields(logrus.Fields{
+						"tokenBalanceRes": tokenBalanceRes,
+					}).Error(err)
 					continue
 				}
 				nowAmount := new(big.Int)
@@ -132,7 +124,7 @@ func (m *Erc20Monitor) Start(ctx context.Context) {
 				if delta.Cmp(big.NewInt(0)) != 0 {
 					err := m.db.SaveMonitorTargetErc20ToDb(*monitorTargetErc20)
 					if err != nil {
-						log.Logger.Err(err).Send()
+						logrus.Error(err)
 					}
 					for chatId, _ := range monitorTargetErc20.ChatId {
 						msg := fmt.Sprintf("ContractAddress: %s\ntokenAddress: %s\nnowAmount: %s\ndelta: %s",
@@ -140,7 +132,7 @@ func (m *Erc20Monitor) Start(ctx context.Context) {
 						for _, notifier := range m.notifier {
 							err = notifier.Notify(chatId, msg)
 							if err != nil {
-								log.Logger.Err(err).Send()
+								logrus.Error(err)
 								continue
 							}
 						}
