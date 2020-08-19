@@ -39,7 +39,6 @@ func (m *Erc20Monitor) Start(ctx context.Context) {
 	if err != nil {
 		panic(err)
 	}
-
 	//init amount of each monitorTargetErc20
 	for _, monitorTargetErc20 := range monitorTargetErc20s {
 		api := fmt.Sprintf(apiPre, monitorTargetErc20.ContractAddress,
@@ -108,8 +107,9 @@ func (m *Erc20Monitor) Start(ctx context.Context) {
 					continue
 				}
 				log.Logger.Info().
-					Str("api",api).
-					Str("res",tokenBalanceRes.Result)
+					Str("api", api).
+					Str("res", tokenBalanceRes.Result).
+					Send()
 
 				if tokenBalanceRes.Status != "1" {
 					log.Logger.Error().
