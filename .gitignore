@@ -5,4 +5,5 @@ cmd/bot/bot
 cmd/bot/conf.toml
 cmd/tx/conf.toml
 cmd/bot/log/
+cmd/logs/logs
 *.db

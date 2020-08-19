@@ -50,12 +50,14 @@ func main() {
 		case err := <-sub.Err():
 			log.Fatal(err)
 		case vLog := <-logs:
+
 			contractAbi.Unpack(&issueTo,"IssueTo",vLog.Data)
-			fmt.Println(vLog.TxHash.String()) // pointer to event log
+			fmt.Println(vLog.TxHash.String()) // pointer to event logs
 			fmt.Println(issueTo.To.String())
 			fmt.Println(issueTo.Amount.Int64())
 			tx,ispending,err:=client.TransactionByHash(context.Background(),vLog.TxHash)
 			b,_:=client.BlockByHash(context.Background(),vLog.BlockHash)
+			client.TransactionReceipt()
 			b.Time()
 			b.GasUsed()
 			if err!=nil{

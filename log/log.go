@@ -41,7 +41,7 @@ func newBtmHook(logPath string) *BtmHook {
 	return hook
 }
 
-// Write a log line to an io.Writer.
+// Write a logs line to an io.Writer.
 func (hook *BtmHook) ioWrite(entry *logrus.Entry) error {
 	module := "general"
 	if data, ok := entry.Data["module"]; ok {
@@ -94,7 +94,7 @@ func (hook *BtmHook) Fire(entry *logrus.Entry) error {
 	return hook.ioWrite(entry)
 }
 
-// Levels returns configured log levels.
+// Levels returns configured logs levels.
 func (hook *BtmHook) Levels() []logrus.Level {
 	return logrus.AllLevels
 }
