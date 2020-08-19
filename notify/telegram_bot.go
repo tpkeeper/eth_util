@@ -81,9 +81,6 @@ func (tg *TelegramBot) Start() {
 	}
 
 	for update := range updates {
-		log.Logger.Info().
-			Str("update from", update.Message.From.UserName).
-			Send()
 		if update.Message != nil {
 			if update.Message.IsCommand() {
 				tg.handleMessageCommand(update.Message)
