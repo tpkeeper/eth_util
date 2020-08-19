@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"github.com/go-telegram-bot-api/telegram-bot-api"
 	"github.com/tpkeeper/eth-util/db"
-	"log"
+	"github.com/tpkeeper/eth-util/log"
 	"strconv"
 	"strings"
 )
@@ -51,10 +51,12 @@ type TelegramBot struct {
 func NewTelegramBot(token string, db *db.Db) *TelegramBot {
 	bot, err := tgbotapi.NewBotAPI(token)
 	if err != nil {
-		log.Panic(err)
+		log.Logger.Err(err).
+			Str("token", token).
+			Send()
 	}
 	bot.Debug = false
-	log.Printf("Authorized on account %s", bot.Self.UserName)
+	log.Logger.Info().Msg(fmt.Sprintf("Authorized on account %s", bot.Self.UserName))
 	return &TelegramBot{bot, db}
 }
 
@@ -79,8 +81,10 @@ func (tg *TelegramBot) Start() {
 	}
 
 	for update := range updates {
+		log.Logger.Info().
+			Str("update from", update.Message.From.UserName).
+			Send()
 		if update.Message != nil {
-			log.Printf("[%s] %s", update.Message.From.UserName, update.Message.Text)
 			if update.Message.IsCommand() {
 				tg.handleMessageCommand(update.Message)
 			} else {
@@ -111,7 +115,7 @@ func (tg *TelegramBot) handleCallbackQuery(callbackQuery *tgbotapi.CallbackQuery
 	chatIdStr := strconv.FormatInt(callbackQuery.Message.Chat.ID, 10)
 	step, err := tg.db.GetStepFromDb(chatIdStr)
 	if err != nil {
-		fmt.Println(err)
+		log.Logger.Err(err).Send()
 		return
 	}
 	tg.AnswerCallbackQuery(tgbotapi.NewCallback(callbackQuery.ID, callbackQuery.Data))
@@ -161,7 +165,7 @@ func (tg *TelegramBot) handleCallbackQuery(callbackQuery *tgbotapi.CallbackQuery
 	case listMonitorStep:
 		monitorTargetErc20s, err := tg.db.GetMonitorTargetErc20sFromDb()
 		if err != nil {
-			fmt.Println(err)
+			log.Logger.Err(err).Send()
 			step.Clear()
 			retMsg.Text = "get list err, return main menu:"
 			retMsg.ReplyMarkup = mainMenu
@@ -200,7 +204,7 @@ func (tg *TelegramBot) handleCallbackQuery(callbackQuery *tgbotapi.CallbackQuery
 
 	err = tg.db.SaveStepToDb(chatIdStr, step)
 	if err != nil {
-		fmt.Println(err)
+		log.Logger.Err(err).Send()
 	}
 }
 
@@ -208,7 +212,7 @@ func (tg *TelegramBot) handleMessageText(message *tgbotapi.Message) {
 	chatIdStr := strconv.FormatInt(message.Chat.ID, 10)
 	step, err := tg.db.GetStepFromDb(chatIdStr)
 	if err != nil {
-		fmt.Println(err)
+		log.Logger.Err(err).Send()
 		return
 	}
 	retMsg := tgbotapi.NewMessage(message.Chat.ID, "")
@@ -222,7 +226,7 @@ func (tg *TelegramBot) handleMessageText(message *tgbotapi.Message) {
 		//save step before return
 		err = tg.db.SaveStepToDb(chatIdStr, step)
 		if err != nil {
-			fmt.Println(err)
+			log.Logger.Err(err).Send()
 		}
 		return
 	}
@@ -233,7 +237,7 @@ func (tg *TelegramBot) handleMessageText(message *tgbotapi.Message) {
 	case addMonitorStep:
 		err := tg.db.SaveTempContractAddrToDb(chatIdStr, message.Text)
 		if err != nil {
-			fmt.Println(err)
+			log.Logger.Err(err).Send()
 			step.Clear()
 			retMsg.Text = warnBedStep
 			retMsg.ReplyMarkup = mainMenu
@@ -249,7 +253,7 @@ func (tg *TelegramBot) handleMessageText(message *tgbotapi.Message) {
 		monitorTargetErc20s, err := tg.db.GetMonitorTargetErc20sFromDb()
 		tempContractAddress, err := tg.db.GetTempContractAddrFromDb(chatIdStr)
 		if err != nil {
-			fmt.Println(err)
+			log.Logger.Err(err).Send()
 			step.Clear()
 			retMsg.Text = warnBedStep
 			retMsg.ReplyMarkup = mainMenu
@@ -268,7 +272,7 @@ func (tg *TelegramBot) handleMessageText(message *tgbotapi.Message) {
 
 			err = tg.db.SaveMonitorTargetErc20ToDb(*monitorTargetErc20s[key])
 			if err != nil {
-				fmt.Printf("saveMonitorTargetToDb %s", err)
+				log.Logger.Err(err).Send()
 			}
 
 			retMsg.Text = fmt.Sprintf("add monitor ok! \ncontract address: %s \ntoken address: %s\n",
@@ -281,7 +285,7 @@ func (tg *TelegramBot) handleMessageText(message *tgbotapi.Message) {
 	case deleteByContractAddressStep:
 		monitorTargetErc20s, err := tg.db.GetMonitorTargetErc20sFromDb()
 		if err != nil {
-			fmt.Println(err)
+			log.Logger.Err(err).Send()
 			step.Clear()
 			retMsg.Text = warnBedStep
 			retMsg.ReplyMarkup = mainMenu
@@ -294,14 +298,14 @@ func (tg *TelegramBot) handleMessageText(message *tgbotapi.Message) {
 						delete(monitorTargetErc20.ChatId, chatIdStr)
 						err := tg.db.SaveMonitorTargetErc20ToDb(*monitorTargetErc20)
 						if err != nil {
-							fmt.Println(err)
+							log.Logger.Err(err).Send()
 						}
 					}
 					if len(monitorTargetErc20.ChatId) == 0 {
 						delete(monitorTargetErc20s, key)
 						err := tg.db.DelMonitorTargetErc20FromDb(key)
 						if err != nil {
-							fmt.Println(err)
+							log.Logger.Err(err).Send()
 						}
 					}
 				}
@@ -317,7 +321,7 @@ func (tg *TelegramBot) handleMessageText(message *tgbotapi.Message) {
 	case deleteByTokenAddressStep:
 		monitorTargetErc20s, err := tg.db.GetMonitorTargetErc20sFromDb()
 		if err != nil {
-			fmt.Println(err)
+			log.Logger.Err(err).Send()
 			step.Clear()
 			retMsg.Text = warnBedStep
 			retMsg.ReplyMarkup = mainMenu
@@ -330,14 +334,14 @@ func (tg *TelegramBot) handleMessageText(message *tgbotapi.Message) {
 						delete(monitorTargetErc20.ChatId, chatIdStr)
 						err := tg.db.SaveMonitorTargetErc20ToDb(*monitorTargetErc20)
 						if err != nil {
-							fmt.Println(err)
+							log.Logger.Err(err).Send()
 						}
 					}
 					if len(monitorTargetErc20.ChatId) == 0 {
 						delete(monitorTargetErc20s, key)
 						err := tg.db.DelMonitorTargetErc20FromDb(key)
 						if err != nil {
-							fmt.Println(err)
+							log.Logger.Err(err).Send()
 						}
 					}
 				}
@@ -358,7 +362,7 @@ func (tg *TelegramBot) handleMessageText(message *tgbotapi.Message) {
 	}
 	err = tg.db.SaveStepToDb(chatIdStr, step)
 	if err != nil {
-		fmt.Println(err)
+		log.Logger.Err(err).Caller().Send()
 	}
 }
 

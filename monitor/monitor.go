@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/tpkeeper/eth-util/db"
+	"github.com/tpkeeper/eth-util/log"
 	"github.com/tpkeeper/eth-util/notify"
 	"io/ioutil"
 	"math/big"
@@ -12,7 +13,7 @@ import (
 	"time"
 )
 
-var api = "https://api.etherscan.io/api?module=account&action=tokenbalance&contractaddress=%s&address=%s&tag=latest&apikey=%s"
+var apiPre = "https://apiPre.etherscan.io/apiPre?module=account&action=tokenbalance&contractaddress=%s&address=%s&tag=latest&apikey=%s"
 
 type TokenBalanceRes struct {
 	Status  string `json:"status"`
@@ -41,27 +42,31 @@ func (m *Erc20Monitor) Start(ctx context.Context) {
 
 	//init amount of each monitorTargetErc20
 	for _, monitorTargetErc20 := range monitorTargetErc20s {
-		res, err := http.Get(fmt.Sprintf(api, monitorTargetErc20.ContractAddress,
-			monitorTargetErc20.TokenAddress, "VC35I1VEW49ZTRNPDT11QQ8WWCS324FZGS"))
+		api := fmt.Sprintf(apiPre, monitorTargetErc20.ContractAddress,
+			monitorTargetErc20.TokenAddress, "VC35I1VEW49ZTRNPDT11QQ8WWCS324FZGS")
+		res, err := http.Get(api)
 
 		if err != nil {
-			fmt.Println(err)
+			log.Logger.Err(err).Send()
 			continue
 		}
 		tokenBalanceRes := TokenBalanceRes{}
 		bts, err := ioutil.ReadAll(res.Body)
 		if err != nil {
-			fmt.Println(err)
+			log.Logger.Err(err).Send()
 			continue
 		}
 		err = json.Unmarshal(bts, &tokenBalanceRes)
 		if err != nil {
-			fmt.Println(err)
+			log.Logger.Err(err).Send()
 			continue
 		}
-		fmt.Println("request", tokenBalanceRes)
 		if tokenBalanceRes.Status != "1" {
-			fmt.Println(tokenBalanceRes)
+			log.Logger.Error().
+				Str("status", tokenBalanceRes.Status).
+				Str("result", tokenBalanceRes.Result).
+				Str("msg", tokenBalanceRes.Message).
+				Send()
 			continue
 		}
 		nowAmount := new(big.Int)
@@ -79,31 +84,39 @@ func (m *Erc20Monitor) Start(ctx context.Context) {
 
 			monitorTargetErc20s, err := m.db.GetMonitorTargetErc20sFromDb()
 			if err != nil {
-				fmt.Println(err)
+				log.Logger.Err(err).Send()
 				continue
 			}
 			for _, monitorTargetErc20 := range monitorTargetErc20s {
-				res, err := http.Get(fmt.Sprintf(api, monitorTargetErc20.ContractAddress,
-					monitorTargetErc20.TokenAddress, "VC35I1VEW49ZTRNPDT11QQ8WWCS324FZGS"))
+				api := fmt.Sprintf(apiPre, monitorTargetErc20.ContractAddress,
+					monitorTargetErc20.TokenAddress, "VC35I1VEW49ZTRNPDT11QQ8WWCS324FZGS")
+				res, err := http.Get(api)
 
 				if err != nil {
-					fmt.Println(err)
+					log.Logger.Err(err).Str("api", api).Send()
 					continue
 				}
 				tokenBalanceRes := TokenBalanceRes{}
 				bts, err := ioutil.ReadAll(res.Body)
 				if err != nil {
-					fmt.Println(err)
+					log.Logger.Err(err).Send()
 					continue
 				}
 				err = json.Unmarshal(bts, &tokenBalanceRes)
 				if err != nil {
-					fmt.Println(err)
+					log.Logger.Err(err).Send()
 					continue
 				}
-				fmt.Println("request", tokenBalanceRes)
+				log.Logger.Info().
+					Str("api",api).
+					Str("res",tokenBalanceRes.Result)
+
 				if tokenBalanceRes.Status != "1" {
-					fmt.Println(tokenBalanceRes)
+					log.Logger.Error().
+						Str("status", tokenBalanceRes.Status).
+						Str("result", tokenBalanceRes.Result).
+						Str("msg", tokenBalanceRes.Message).
+						Send()
 					continue
 				}
 				nowAmount := new(big.Int)
@@ -119,7 +132,7 @@ func (m *Erc20Monitor) Start(ctx context.Context) {
 				if delta.Cmp(big.NewInt(0)) != 0 {
 					err := m.db.SaveMonitorTargetErc20ToDb(*monitorTargetErc20)
 					if err != nil {
-						fmt.Println(err)
+						log.Logger.Err(err).Send()
 					}
 					for chatId, _ := range monitorTargetErc20.ChatId {
 						msg := fmt.Sprintf("ContractAddress: %s\ntokenAddress: %s\nnowAmount: %s\ndelta: %s",
@@ -127,7 +140,7 @@ func (m *Erc20Monitor) Start(ctx context.Context) {
 						for _, notifier := range m.notifier {
 							err = notifier.Notify(chatId, msg)
 							if err != nil {
-								fmt.Println(err)
+								log.Logger.Err(err).Send()
 								continue
 							}
 						}
