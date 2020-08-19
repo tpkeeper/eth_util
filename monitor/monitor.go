@@ -13,7 +13,7 @@ import (
 	"time"
 )
 
-var apiPre = "https://apiPre.etherscan.io/apiPre?module=account&action=tokenbalance&contractaddress=%s&address=%s&tag=latest&apikey=%s"
+var apiPre = "https://api.etherscan.io/api?module=account&action=tokenbalance&contractaddress=%s&address=%s&tag=latest&apikey=%s"
 
 type TokenBalanceRes struct {
 	Status  string `json:"status"`
