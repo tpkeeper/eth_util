@@ -1,4 +1,5 @@
-.idea/
+.idea
+.vscode
 cmd/tx/tx
 cmd/event/event
 cmd/bot/bot
@@ -6,4 +7,5 @@ cmd/bot/conf.toml
 cmd/tx/conf.toml
 cmd/bot/log/
 cmd/logs/logs
+cmd/sync/sync
 *.db
