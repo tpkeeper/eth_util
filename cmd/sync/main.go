@@ -3,19 +3,19 @@ package main
 import (
 	"errors"
 	"fmt"
-	"github.com/ethereum/go-ethereum"
-	"github.com/ethereum/go-ethereum/accounts/abi"
-	"github.com/ethereum/go-ethereum/common"
 	"log"
 	"math/big"
 	"strings"
 	"time"
 
+	"github.com/ethereum/go-ethereum"
+	"github.com/ethereum/go-ethereum/accounts/abi"
+	"github.com/ethereum/go-ethereum/common"
+
 	"github.com/BurntSushi/toml"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	hdwallet "github.com/miguelmota/go-ethereum-hdwallet"
-	"github.com/robfig/cron/v3"
 	"golang.org/x/net/context"
 )
 
@@ -69,30 +69,35 @@ func main() {
 	}
 
 	context := context.Background()
-	c := cron.New()
-	c.AddFunc(cfg.Schedule, func() {
-		for index, _ := range addrTo {
-			client, err := ethclient.Dial(cfg.InfuraAPI)
-			if err != nil {
-				fmt.Printf("connect infura err %e", err)
-				return
-			}
+	//c := cron.New()
+	//c.AddFunc(cfg.Schedule, func() {
+	for index, _ := range addrTo {
+		client, err := ethclient.Dial(cfg.InfuraAPI)
+		if err != nil {
+			fmt.Printf("connect infura err %e", err)
+			return
+		}
 
+		for {
 			err = sendContractTx(context, client, wallet, &addrTo[index], data)
 			if err != nil {
 				fmt.Printf("send tx for sync() err %s\n", err)
-				return
+				fmt.Printf("will resend after 3 seconds \n")
+				time.Sleep(time.Second*3)
+				continue
 			}
-
-			fmt.Printf("sent tx for sync() ok, from:%s toContract:%s,time:%s\n\n",
-				wallet.Accounts()[0].Address.String(), addrTo[index].String(), time.Now().String())
+			break
 		}
-		fmt.Printf("schedule is running...\n")
 
-	})
-	c.Start()
-	fmt.Printf("schedule is running...\n")
-	select {}
+		fmt.Printf("sent tx for sync() ok, from:%s toContract:%s,time:%s\n\n",
+			wallet.Accounts()[0].Address.String(), addrTo[index].String(), time.Now().String())
+	}
+	//fmt.Printf("schedule is running...\n")
+
+	//})
+	//c.Start()
+	//fmt.Printf("schedule is running...\n")
+	//select {}
 }
 
 func sendContractTx(ctx context.Context, client *ethclient.Client, wallet *hdwallet.Wallet, to *common.Address,
