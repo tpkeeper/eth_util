@@ -55,11 +55,18 @@ func main() {
 		panic(err)
 	}
 
-	wallet, err := hdwallet.NewFromMnemonic(cfg.Mnemonic)
+	//wallet, err := hdwallet.NewFromMnemonic(cfg.Mnemonic)
+	//if err != nil {
+	//	panic(err)
+	//}
+	seedBts, err := hex.DecodeString(cfg.Mnemonic)
 	if err != nil {
 		panic(err)
 	}
-
+	wallet, err := hdwallet.NewFromSeed(seedBts)
+	if err != nil {
+		panic(err)
+	}
 	_, err = wallet.Derive(hdwallet.DefaultBaseDerivationPath, true)
 	if err != nil {
 		panic(err)

@@ -9,3 +9,6 @@ cmd/bot/log/
 cmd/logs/logs
 cmd/sync/sync
 *.db
+cmd/pause/log_data/
+cmd/pause/pause
+cmd/bob/bob
