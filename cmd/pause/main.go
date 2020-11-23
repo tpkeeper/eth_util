@@ -3,8 +3,9 @@ package main
 import (
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"fmt"
+	"github.com/btcsuite/btcd/btcec"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/sirupsen/logrus"
 	"io/ioutil"
 	"math/big"
@@ -21,15 +22,13 @@ import (
 	"github.com/BurntSushi/toml"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
-	hdwallet "github.com/miguelmota/go-ethereum-hdwallet"
 	"golang.org/x/net/context"
 )
 
 type config struct {
-	InfuraAPI string
-	Mnemonic  string
-	Schedule  string
-	To        []string
+	InfuraAPI  string
+	PrivateKey string
+	To         []string
 }
 
 var bigZero = big.NewInt(0)
@@ -59,18 +58,14 @@ func main() {
 	//if err != nil {
 	//	panic(err)
 	//}
-	seedBts, err := hex.DecodeString(cfg.Mnemonic)
+	privateKeyBts, err := hex.DecodeString(cfg.PrivateKey)
 	if err != nil {
 		panic(err)
 	}
-	wallet, err := hdwallet.NewFromSeed(seedBts)
-	if err != nil {
-		panic(err)
-	}
-	_, err = wallet.Derive(hdwallet.DefaultBaseDerivationPath, true)
-	if err != nil {
-		panic(err)
-	}
+
+	_, pubKey := btcec.PrivKeyFromBytes(btcec.S256(), privateKeyBts)
+
+	fromAddress := crypto.PubkeyToAddress(*pubKey.ToECDSA()).String()
 
 	var addrTo []common.Address
 	for _, to := range cfg.To {
@@ -90,6 +85,7 @@ func main() {
 	}
 
 	merkleRootMethodData, err := claimAbi.Pack("merkleRoot")
+	//_, err = claimAbi.Pack("merkleRoot")
 	if err != err {
 		panic(err)
 	}
@@ -114,7 +110,7 @@ func main() {
 			return
 		}
 		logrus.Println("merkleRootmethod", hex.EncodeToString(merkleRootMethodData))
-		resBytes, err := callContract(context, client, wallet, &addrTo[0], merkleRootMethodData)
+		resBytes, err := callContract(context, client, privateKeyBts, &addrTo[0], merkleRootMethodData)
 		if err != nil {
 			logrus.Printf("callContract  for merkleRoot err %s\n", err)
 			logrus.Printf("will request after 5 seconds \n")
@@ -129,7 +125,7 @@ func main() {
 			continue
 		}
 		logrus.Printf("get old merkleRoot ok. old merkleRoot %s from:%s toContract:%s,time:%s\n\n",
-			hex.EncodeToString(oldMerkelRoot[:]), wallet.Accounts()[0].Address.String(), addrTo[0].String(), time.Now().String())
+			hex.EncodeToString(oldMerkelRoot[:]), fromAddress, addrTo[0].String(), time.Now().String())
 		break
 	}
 
@@ -139,7 +135,7 @@ func main() {
 			logrus.Printf("connect infura err %e", err)
 			return
 		}
-		err = sendContractTx(context, client, wallet, &addrTo[0], pauseMethodData)
+		err = sendContractTx(context, client, &addrTo[0], privateKeyBts, pauseMethodData)
 		if err != nil {
 			logrus.Printf("send tx for pause() err %s\n", err)
 			logrus.Printf("will resend after 5 seconds \n")
@@ -148,7 +144,7 @@ func main() {
 		}
 
 		logrus.Printf("sent tx for pause() ok, from:%s toContract:%s,time:%s\n\n",
-			wallet.Accounts()[0].Address.String(), addrTo[0].String(), time.Now().String())
+			fromAddress, addrTo[0].String(), time.Now().String())
 
 		break
 	}
@@ -190,7 +186,7 @@ func main() {
 		if err != err {
 			panic(err)
 		}
-		err = sendContractTx(context, client, wallet, &addrTo[0], changeMerkleRootMethodData)
+		err = sendContractTx(context, client, &addrTo[0], privateKeyBts, changeMerkleRootMethodData)
 		if err != nil {
 			logrus.Printf("send tx for changeMerkleRoot() err %s\n", err)
 			logrus.Printf("will resend after 5 seconds \n")
@@ -198,7 +194,7 @@ func main() {
 			continue
 		}
 		logrus.Printf("sent tx for changeMerkleRoot() ok,merkle root: %s from:%s toContract:%s,time:%s\n\n",
-			resClaimRoot.Data, wallet.Accounts()[0].Address.String(), addrTo[0].String(), time.Now().String())
+			resClaimRoot.Data, fromAddress, addrTo[0].String(), time.Now().String())
 		break
 
 	}
@@ -209,7 +205,7 @@ func main() {
 			logrus.Printf("connect infura err %e", err)
 			return
 		}
-		err = sendContractTx(context, client, wallet, &addrTo[0], startMethodData)
+		err = sendContractTx(context, client, &addrTo[0], privateKeyBts, startMethodData)
 		if err != nil {
 			logrus.Printf("send tx for start() err %s\n", err)
 			logrus.Printf("will resend after 5 seconds \n")
@@ -218,20 +214,17 @@ func main() {
 		}
 
 		logrus.Printf("sent tx for start() ok, from:%s toContract:%s,time:%s\n\n",
-			wallet.Accounts()[0].Address.String(), addrTo[0].String(), time.Now().String())
+			fromAddress, addrTo[0].String(), time.Now().String())
 		break
 	}
 
 }
 
-func sendContractTx(ctx context.Context, client *ethclient.Client, wallet *hdwallet.Wallet, to *common.Address,
+func sendContractTx(ctx context.Context, client *ethclient.Client, to *common.Address, privateKeyBts []byte,
 	data []byte) error {
-	if len(wallet.Accounts()) == 0 {
-		return errors.New("wallet have no address")
-	}
+	_, pubKey := btcec.PrivKeyFromBytes(btcec.S256(), privateKeyBts)
 
-	account := wallet.Accounts()[0]
-	from := account.Address
+	from := crypto.PubkeyToAddress(*pubKey.ToECDSA())
 
 	nonceNext, err := client.PendingNonceAt(ctx, from)
 	if err != nil {
@@ -255,7 +248,8 @@ func sendContractTx(ctx context.Context, client *ethclient.Client, wallet *hdwal
 	tx := types.NewTransaction(nonceNext, *to,
 		bigZero, gasNum, gasPrice, data)
 
-	signedTx, err := wallet.SignTx(account, tx, nil)
+	signedTx, err := signTx(tx, privateKeyBts)
+	//signedTx, err := wallet.SignTx(account, tx, nil)
 	if err != nil {
 		return err
 	}
@@ -269,13 +263,15 @@ func sendContractTx(ctx context.Context, client *ethclient.Client, wallet *hdwal
 	return nil
 }
 
-func callContract(ctx context.Context, client *ethclient.Client, wallet *hdwallet.Wallet, to *common.Address, data []byte) ([]byte, error) {
-	if len(wallet.Accounts()) == 0 {
-		return nil, errors.New("wallet have no address")
-	}
-	account := wallet.Accounts()[0]
-	from := account.Address
+func callContract(ctx context.Context, client *ethclient.Client, privKeyBts []byte, to *common.Address, data []byte) ([]byte, error) {
+	//if len(wallet.Accounts()) == 0 {
+	//	return nil, errors.New("wallet have no address")
+	//}
+	//account := wallet.Accounts()[0]
+	//from := account.Address
+	_, pubKey := btcec.PrivKeyFromBytes(btcec.S256(), privKeyBts)
 
+	from := crypto.PubkeyToAddress(*pubKey.ToECDSA())
 	gasPrice, err := client.SuggestGasPrice(ctx)
 	if err != nil {
 		return nil, err
@@ -283,5 +279,17 @@ func callContract(ctx context.Context, client *ethclient.Client, wallet *hdwalle
 	gasPrice = new(big.Int).Add(gasPrice, big.NewInt(20e9))
 
 	msg := ethereum.CallMsg{From: from, To: to, GasPrice: gasPrice, Value: bigZero, Data: data}
+	gasNum, err := client.EstimateGas(ctx, msg)
+	if err == nil {
+		gasNum = gasNum * 3 / 2
+		msg.Gas = gasNum
+	}
 	return client.CallContract(ctx, msg, nil)
+}
+
+func signTx(rawTx *types.Transaction, privateKeyBts []byte) (signedTx *types.Transaction, err error) {
+	privKey, _ := btcec.PrivKeyFromBytes(btcec.S256(), privateKeyBts)
+	// Sign the transaction and verify the sender to avoid hardware fault surprises
+	signedTx, err = types.SignTx(rawTx, types.HomesteadSigner{}, privKey.ToECDSA())
+	return
 }

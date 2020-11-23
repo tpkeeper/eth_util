@@ -4,6 +4,7 @@ go 1.14
 
 require (
 	github.com/BurntSushi/toml v0.3.1
+	github.com/btcsuite/btcd v0.0.0-20190824003749-130ea5bddde3
 	github.com/ethereum/go-ethereum v1.9.18
 	github.com/fastly/go-utils v0.0.0-20180712184237-d95a45783239 // indirect
 	github.com/go-telegram-bot-api/telegram-bot-api v4.6.4+incompatible

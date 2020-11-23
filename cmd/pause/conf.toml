@@ -1,4 +1,3 @@
 infuraapi="https://ropsten.infura.io/v3/fa2b9f06ae2f43faa3ce69c80fde51c5"
-mnemonic="large flower skin interest pulp embrace until jelly drop insane erase unveil"
+privatekey = "8d65d87a2de0fc95f860352250f73240baf413e21dac5e21e00b9e5a3dff16d5"
 to=["0xA15f8aCf5dcFD020Ea4f34888bcdB9e7c12e22a8"] #contract address
-schedule="16 * * * *" #CRON Expression Fromat  (https://godoc.org/github.com/robfig/cron)
